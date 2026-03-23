@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -24,6 +26,8 @@ import com.satyam.quotation.service.RefreshTokenService;
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
@@ -46,11 +50,24 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> request) {
         try {
+            String email = request.get("email");
+            String password = request.get("password");
+
+            log.debug("Login attempt - email: '{}', password length: {}, password bytes: {}",
+                    email,
+                    password != null ? password.length() : "null",
+                    password != null ? java.util.Arrays.toString(password.getBytes()) : "null");
+
+            // Direct BCrypt check for debugging
+            var userOpt = userRepository.findByEmailIgnoreCase(email != null ? email.toLowerCase() : "");
+            if (userOpt.isPresent()) {
+                boolean matches = passwordEncoder.matches(password, userOpt.get().getPassword());
+                log.debug("Direct BCrypt check - stored hash: '{}', matches: {}",
+                        userOpt.get().getPassword(), matches);
+            }
+
             Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            request.get("email"),
-                            request.get("password")
-                    )
+                    new UsernamePasswordAuthenticationToken(email, password)
             );
 
             CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
@@ -83,6 +100,10 @@ public class AuthController {
                     )
             ));
         } catch (Exception e) {
+            log.error("Login failed for email: {} | Exception type: {} | Message: {}",
+                    request.get("email"),
+                    e.getClass().getName(),
+                    e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Invalid credentials"));
         }
