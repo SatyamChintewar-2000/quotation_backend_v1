@@ -10,8 +10,12 @@ import java.time.LocalDateTime;
 public class ProductDTO {
     private Long id;
     private String productName;
+    private String productCode;
+    private String brand;
+    private String category;
     private String description;
     private BigDecimal price;
+    private BigDecimal purchasePrice;
     private String unit;
     private Integer quantity;
     private BigDecimal discountPercentage;

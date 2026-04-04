@@ -68,9 +68,12 @@ public class CompanyController {
 
     @GetMapping
     @Transactional(readOnly = true)
-    public List<CompanyDTO> getCompanies() {
+    public List<CompanyDTO> getCompanies(Authentication authentication) {
+        CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+        // Superadmin sees all companies (active + inactive) to manage them
+        boolean isSuperAdmin = "SUPER_ADMIN".equals(user.getRole()) || "SUPERADMIN".equals(user.getRole());
         return companyRepository.findAll().stream()
-                .filter(Company::getActive)
+                .filter(c -> isSuperAdmin || Boolean.TRUE.equals(c.getActive()))
                 .map(companyMapper::toDto)
                 .toList();
     }
@@ -122,8 +125,7 @@ public class CompanyController {
 
         log.info("User {} deleting company {}", user.getUserId(), id);
 
-        // Only SUPER_ADMIN can delete companies
-        if (!"SUPER_ADMIN".equals(user.getRole())) {
+        if (!"SUPER_ADMIN".equals(user.getRole()) && !"SUPERADMIN".equals(user.getRole())) {
             throw new RuntimeException("Only SUPER_ADMIN can delete companies");
         }
 
@@ -135,5 +137,29 @@ public class CompanyController {
         company.setDeletedAt(LocalDateTime.now());
 
         companyRepository.save(company);
+    }
+
+    @PutMapping("/{id}/toggle-active")
+    public CompanyDTO toggleActive(
+            @PathVariable Long id,
+            Authentication authentication) {
+
+        CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+        if (!"SUPER_ADMIN".equals(user.getRole()) && !"SUPERADMIN".equals(user.getRole())) {
+            throw new RuntimeException("Only SUPER_ADMIN can activate/deactivate companies");
+        }
+
+        Company company = companyRepository.findById(id)
+                .orElseThrow(() -> new com.satyam.quotation.exception.ResourceNotFoundException(
+                        "Company not found with id: " + id));
+
+        company.setActive(!Boolean.TRUE.equals(company.getActive()));
+        company.setUpdatedAt(LocalDateTime.now());
+        company.setUpdatedBy(user.getUserId());
+
+        log.info("User {} toggled company {} active to {}", user.getUserId(), id, company.getActive());
+
+        return companyMapper.toDto(companyRepository.save(company));
     }
 }

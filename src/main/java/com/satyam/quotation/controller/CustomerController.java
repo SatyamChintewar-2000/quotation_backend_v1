@@ -54,14 +54,25 @@ public class CustomerController {
     public List<CustomerDTO> getCustomers(Authentication authentication) {
 
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+        String role = user.getRole();
 
-        if ("CLIENT".equals(user.getRole())) {
+        // Superadmin sees all customers
+        if ("SUPERADMIN".equalsIgnoreCase(role) || "SUPER_ADMIN".equalsIgnoreCase(role)) {
             return customerService.getCustomersByCompany(user.getCompanyId())
                     .stream()
                     .map(customerMapper::toDto)
                     .toList();
         }
 
+        // Admin/Client sees their whole company
+        if ("ADMIN".equalsIgnoreCase(role) || "CLIENT".equalsIgnoreCase(role)) {
+            return customerService.getCustomersByCompany(user.getCompanyId())
+                    .stream()
+                    .map(customerMapper::toDto)
+                    .toList();
+        }
+
+        // Staff sees only their own
         return customerService.getCustomersByUser(user.getUserId())
                 .stream()
                 .map(customerMapper::toDto)
