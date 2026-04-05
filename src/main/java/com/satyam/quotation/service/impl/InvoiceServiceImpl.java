@@ -147,6 +147,15 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<InvoiceDTO> getInvoicesByCreatedBy(Long userId) {
+        return invoiceRepository.findAll().stream()
+                .filter(i -> Boolean.TRUE.equals(i.getActive()) && userId.equals(i.getCreatedBy()))
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<InvoiceDTO> getInvoicesByCustomer(Long customerId) {
         return invoiceRepository.findByCustomerId(customerId).stream()
                 .filter(Invoice::getActive)

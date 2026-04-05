@@ -18,6 +18,8 @@ public interface InvoiceService {
     InvoiceDTO getInvoiceByNumber(String invoiceNumber);
     
     List<InvoiceDTO> getInvoicesByCompany(Long companyId);
+
+    List<InvoiceDTO> getInvoicesByCreatedBy(Long userId);
     
     List<InvoiceDTO> getInvoicesByCustomer(Long customerId);
     

@@ -65,13 +65,26 @@ public class QuotationController {
 
         // Convert DTO to entity using mapper
         Quotation quotation = quotationMapper.toEntity(requestDTO);
-        
+
         // Set user and company
         quotation.setCreatedBy(user.getUserId());
         if (user.getCompanyId() != null) {
             Company company = new Company();
             company.setId(user.getCompanyId());
             quotation.setCompany(company);
+        }
+
+        // Map services from DTO
+        if (requestDTO.getServices() != null && !requestDTO.getServices().isEmpty()) {
+            List<com.satyam.quotation.model.QuotationService> services = requestDTO.getServices().stream()
+                .map(s -> com.satyam.quotation.model.QuotationService.builder()
+                    .serviceName(s.getServiceName())
+                    .servicePrice(s.getServicePrice() != null ? s.getServicePrice() : java.math.BigDecimal.ZERO)
+                    .serviceTax(s.getServiceTax() != null ? s.getServiceTax() : java.math.BigDecimal.ZERO)
+                    .quotation(quotation)
+                    .build())
+                .collect(java.util.stream.Collectors.toList());
+            quotation.setServices(services);
         }
 
         Quotation saved = quotationService.createQuotation(quotation);
@@ -278,6 +291,7 @@ public class QuotationController {
      * Change quotation status
      */
     @PutMapping("/{id}/status")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<?> changeStatus(
             @PathVariable Long id,
             @RequestBody Map<String, String> request,

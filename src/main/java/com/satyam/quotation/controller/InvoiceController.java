@@ -42,8 +42,17 @@ public class InvoiceController {
     @Transactional(readOnly = true)
     public List<InvoiceDTO> getInvoices(Authentication authentication) {
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
-        log.info("Fetching invoices for company {}", user.getCompanyId());
-        return invoiceService.getInvoicesByCompany(user.getCompanyId());
+        String role = user.getRole();
+        log.info("Fetching invoices for user {} (role: {})", user.getUserId(), role);
+
+        // SUPERADMIN / CLIENT / ADMIN → company-wide invoices
+        if ("SUPER_ADMIN".equalsIgnoreCase(role) || "SUPERADMIN".equalsIgnoreCase(role)
+                || "CLIENT".equalsIgnoreCase(role) || "ADMIN".equalsIgnoreCase(role)) {
+            return invoiceService.getInvoicesByCompany(user.getCompanyId());
+        }
+
+        // STAFF → only invoices they created (via quotations they created)
+        return invoiceService.getInvoicesByCreatedBy(user.getUserId());
     }
 
     @GetMapping("/{id}")
