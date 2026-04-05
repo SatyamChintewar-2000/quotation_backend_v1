@@ -1,11 +1,14 @@
 package com.satyam.quotation.exception;
 
 import java.time.LocalDateTime;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -18,77 +21,73 @@ public class GlobalExceptionHandler {
 
     // 404 - Not Found
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ApiError> handleNotFound(
-            ResourceNotFoundException ex,
-            HttpServletRequest request) {
-
-        log.error("Resource not found: {}", ex.getMessage());
-
-        ApiError error = new ApiError(
-                LocalDateTime.now(),
-                HttpStatus.NOT_FOUND.value(),
-                "NOT_FOUND",
-                ex.getMessage(),
-                request.getRequestURI()
-        );
-
-        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    public ResponseEntity<ApiError> handleNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
+        log.warn("[404] Resource not found at {}: {}", request.getRequestURI(), ex.getMessage());
+        return build(HttpStatus.NOT_FOUND, "NOT_FOUND", ex.getMessage(), request);
     }
 
-    // 400 - Bad Request
+    // 400 - Bad Request (custom)
     @ExceptionHandler(BadRequestException.class)
-    public ResponseEntity<ApiError> handleBadRequest(
-            BadRequestException ex,
-            HttpServletRequest request) {
+    public ResponseEntity<ApiError> handleBadRequest(BadRequestException ex, HttpServletRequest request) {
+        log.warn("[400] Bad request at {}: {}", request.getRequestURI(), ex.getMessage());
+        return build(HttpStatus.BAD_REQUEST, "BAD_REQUEST", ex.getMessage(), request);
+    }
 
-        log.error("Bad request: {}", ex.getMessage());
+    // 400 - Validation errors (@Valid)
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest request) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .map(FieldError::getDefaultMessage)
+                .collect(Collectors.joining(", "));
+        log.warn("[400] Validation failed at {}: {}", request.getRequestURI(), message);
+        return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", message, request);
+    }
 
-        ApiError error = new ApiError(
-                LocalDateTime.now(),
-                HttpStatus.BAD_REQUEST.value(),
-                "BAD_REQUEST",
-                ex.getMessage(),
-                request.getRequestURI()
-        );
+    // 400 - Illegal state (e.g. invalid status transition)
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiError> handleIllegalState(IllegalStateException ex, HttpServletRequest request) {
+        log.warn("[400] Illegal state at {}: {}", request.getRequestURI(), ex.getMessage());
+        return build(HttpStatus.BAD_REQUEST, "INVALID_OPERATION", ex.getMessage(), request);
+    }
 
-        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    // 400 - Illegal argument
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiError> handleIllegalArgument(IllegalArgumentException ex, HttpServletRequest request) {
+        log.warn("[400] Illegal argument at {}: {}", request.getRequestURI(), ex.getMessage());
+        return build(HttpStatus.BAD_REQUEST, "INVALID_ARGUMENT", ex.getMessage(), request);
     }
 
     // 401 - Unauthorized
     @ExceptionHandler(UnauthorizedException.class)
-    public ResponseEntity<ApiError> handleUnauthorized(
-            UnauthorizedException ex,
-            HttpServletRequest request) {
-
-        log.error("Unauthorized access: {}", ex.getMessage());
-
-        ApiError error = new ApiError(
-                LocalDateTime.now(),
-                HttpStatus.UNAUTHORIZED.value(),
-                "UNAUTHORIZED",
-                ex.getMessage(),
-                request.getRequestURI()
-        );
-
-        return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
+    public ResponseEntity<ApiError> handleUnauthorized(UnauthorizedException ex, HttpServletRequest request) {
+        log.warn("[401] Unauthorized at {}: {}", request.getRequestURI(), ex.getMessage());
+        return build(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", ex.getMessage(), request);
     }
 
-    // 500 - Internal Server Error
+    // 403 - Forbidden (RuntimeException with permission message)
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<ApiError> handleRuntime(RuntimeException ex, HttpServletRequest request) {
+        String msg = ex.getMessage();
+        if (msg != null && (msg.contains("Only") || msg.contains("cannot") || msg.contains("not allowed"))) {
+            log.warn("[403] Forbidden at {}: {}", request.getRequestURI(), msg);
+            return build(HttpStatus.FORBIDDEN, "FORBIDDEN", msg, request);
+        }
+        log.error("[500] Runtime error at {} — {}: {}", request.getRequestURI(), ex.getClass().getSimpleName(), msg, ex);
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR",
+                "An unexpected error occurred. Please try again.", request);
+    }
+
+    // 500 - Catch-all
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiError> handleGlobalException(
-            Exception ex,
-            HttpServletRequest request) {
+    public ResponseEntity<ApiError> handleGlobal(Exception ex, HttpServletRequest request) {
+        log.error("[500] Unhandled exception at {} — {}: {}", request.getRequestURI(),
+                ex.getClass().getSimpleName(), ex.getMessage(), ex);
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR",
+                "Something went wrong. Please try again later.", request);
+    }
 
-        log.error("Unexpected error", ex);
-
-        ApiError error = new ApiError(
-                LocalDateTime.now(),
-                HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                "INTERNAL_SERVER_ERROR",
-                "Something went wrong. Please try again later.",
-                request.getRequestURI()
-        );
-
-        return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
+    private ResponseEntity<ApiError> build(HttpStatus status, String code, String message, HttpServletRequest request) {
+        ApiError error = new ApiError(LocalDateTime.now(), status.value(), code, message, request.getRequestURI());
+        return new ResponseEntity<>(error, status);
     }
 }

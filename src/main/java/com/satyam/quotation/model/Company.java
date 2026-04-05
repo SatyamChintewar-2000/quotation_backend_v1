@@ -37,6 +37,15 @@ public class Company {
     @Column(name = "gst_number")
     private String gstNumber;
 
+    @Column(name = "state")
+    private String state;
+
+    @Column(name = "city")
+    private String city;
+
+    @Column(name = "terms_and_conditions", columnDefinition = "TEXT")
+    private String termsAndConditions;
+
     @Column(name = "logo")
     private String logo;
 

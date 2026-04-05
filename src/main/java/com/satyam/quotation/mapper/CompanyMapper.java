@@ -22,9 +22,8 @@ public interface CompanyMapper {
     @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "updatedBy", ignore = true)
     @Mapping(target = "deletedBy", ignore = true)
-    @Mapping(target = "logo", ignore = true)
     Company toEntity(CompanyRequestDTO requestDTO);
-    
+
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "active", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
@@ -33,6 +32,5 @@ public interface CompanyMapper {
     @Mapping(target = "createdBy", ignore = true)
     @Mapping(target = "updatedBy", ignore = true)
     @Mapping(target = "deletedBy", ignore = true)
-    @Mapping(target = "logo", ignore = true)
     void updateEntity(CompanyRequestDTO requestDTO, @MappingTarget Company company);
 }

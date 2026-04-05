@@ -257,13 +257,13 @@ public class QuotationBusinessServiceImpl implements QuotationBusinessService {
             throw new IllegalStateException("Quotation must have at least one item");
         }
 
-        // Check if expiry date is set
-        if (quotation.getExpiryDate() == null) {
-            throw new IllegalStateException("Expiry date is required");
-        }
+        // Check if expiry date is set (optional now)
+        // if (quotation.getExpiryDate() == null) {
+        //     throw new IllegalStateException("Expiry date is required");
+        // }
 
         // Check if customer is set
-        if (quotation.getCustomer() == null) {
+        if (quotation.getCustomer() == null || quotation.getCustomer().getId() == null) {
             throw new IllegalStateException("Customer is required");
         }
 

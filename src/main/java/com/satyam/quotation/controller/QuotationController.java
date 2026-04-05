@@ -291,6 +291,7 @@ public class QuotationController {
      * Change quotation status
      */
     @PutMapping("/{id}/status")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<?> changeStatus(
             @PathVariable Long id,
             @RequestBody Map<String, String> request,
