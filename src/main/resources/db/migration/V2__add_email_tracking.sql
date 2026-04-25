@@ -19,6 +19,6 @@ CREATE TABLE IF NOT EXISTS email_log (
     created_by BIGINT REFERENCES "user"(id)
 );
 
-CREATE INDEX idx_email_log_quotation ON email_log(quotation_id);
-CREATE INDEX idx_email_log_status ON email_log(status);
-CREATE INDEX idx_email_log_type ON email_log(email_type);
+CREATE INDEX IF NOT EXISTS idx_email_log_quotation ON email_log(quotation_id);
+CREATE INDEX IF NOT EXISTS idx_email_log_status ON email_log(status);
+CREATE INDEX IF NOT EXISTS idx_email_log_type ON email_log(email_type);

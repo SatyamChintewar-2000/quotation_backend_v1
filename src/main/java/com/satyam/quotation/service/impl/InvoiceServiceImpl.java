@@ -389,7 +389,11 @@ public class InvoiceServiceImpl implements InvoiceService {
         int currentYear = Year.now().getValue();
         
         InvoiceSequence sequence = invoiceSequenceRepository.findByCompanyIdAndYear(companyId, currentYear)
-                .orElse(new InvoiceSequence());
+                .orElseGet(() -> {
+                    InvoiceSequence s = new InvoiceSequence();
+                    s.setLastSequence(0);
+                    return s;
+                });
         
         sequence.setCompany(companyRepository.findById(companyId)
                 .orElseThrow(() -> new ResourceNotFoundException("Company not found")));

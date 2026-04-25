@@ -81,7 +81,7 @@ public class CustomerController {
 
     @GetMapping("/{id}")
     @Transactional(readOnly = true)
-    public CustomerDTO getCustomer(@PathVariable Long id) {
+    public CustomerDTO getCustomer(@PathVariable("id") Long id) {
         var customer = customerService.getCustomerById(id)
                 .orElseThrow(() -> new RuntimeException("Customer not found with id: " + id));
         return customerMapper.toDto(customer);
@@ -89,7 +89,7 @@ public class CustomerController {
 
     @PutMapping("/{id}")
     public CustomerDTO updateCustomer(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @Valid @RequestBody CustomerRequestDTO request,
             Authentication authentication) {
 
@@ -109,7 +109,7 @@ public class CustomerController {
 
     @DeleteMapping("/{id}")
     public void deleteCustomer(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             Authentication authentication) {
 
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();

@@ -44,14 +44,9 @@ public class EnquiryController {
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
         String role = user.getRole();
 
-        // Superadmin sees everything
-        if ("SUPERADMIN".equalsIgnoreCase(role) || "SUPER_ADMIN".equalsIgnoreCase(role)) {
-            return enquiryService.getAll()
-                .stream().map(enquiryMapper::toDto).toList();
-        }
-
-        // Admin/Client sees their whole company
-        if ("ADMIN".equalsIgnoreCase(role) || "CLIENT".equalsIgnoreCase(role)) {
+        // Superadmin and Client see their company data
+        if ("SUPERADMIN".equalsIgnoreCase(role) || "SUPER_ADMIN".equalsIgnoreCase(role)
+                || "ADMIN".equalsIgnoreCase(role) || "CLIENT".equalsIgnoreCase(role)) {
             return enquiryService.getByCompany(user.getCompanyId())
                 .stream().map(enquiryMapper::toDto).toList();
         }
@@ -63,14 +58,14 @@ public class EnquiryController {
 
     @GetMapping("/{id}")
     @Transactional(readOnly = true)
-    public EnquiryDTO getById(@PathVariable Long id) {
+    public EnquiryDTO getById(@PathVariable("id") Long id) {
         return enquiryService.getById(id)
             .map(enquiryMapper::toDto)
             .orElseThrow(() -> new RuntimeException("Enquiry not found: " + id));
     }
 
     @PutMapping("/{id}")
-    public EnquiryDTO update(@PathVariable Long id,
+    public EnquiryDTO update(@PathVariable("id") Long id,
                               @Valid @RequestBody EnquiryRequestDTO request,
                               Authentication authentication) {
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
@@ -82,7 +77,7 @@ public class EnquiryController {
     }
 
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Long id, Authentication authentication) {
+    public void delete(@PathVariable("id") Long id, Authentication authentication) {
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
         log.info("User {} deleting enquiry {}", user.getUserId(), id);
         enquiryService.delete(id, user.getUserId());

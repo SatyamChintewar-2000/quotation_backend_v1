@@ -1,4 +1,4 @@
-CREATE TABLE enquiry (
+CREATE TABLE IF NOT EXISTS enquiry (
     id BIGSERIAL PRIMARY KEY,
     enquiry_date DATE NOT NULL,
     name VARCHAR(100) NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE enquiry (
     refer_by VARCHAR(100),
     next_followup_date DATE,
     comment TEXT,
-    converted_customer_id BIGINT REFERENCES customer(id),
+    converted_customer_id BIGINT REFERENCES customers(id),
     company_id BIGINT NOT NULL REFERENCES company(id),
     created_by BIGINT,
     created_at TIMESTAMP DEFAULT NOW(),

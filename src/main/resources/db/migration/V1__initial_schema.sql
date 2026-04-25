@@ -159,17 +159,17 @@ CREATE TABLE IF NOT EXISTS email_log (
 );
 
 -- Indexes for performance
-CREATE INDEX idx_user_email ON "user"(email);
-CREATE INDEX idx_user_company ON "user"(company_id);
-CREATE INDEX idx_customer_company ON customers(company_id);
-CREATE INDEX idx_customer_created_by ON customers(created_by);
-CREATE INDEX idx_product_company ON products(company_id);
-CREATE INDEX idx_quotation_company ON quotation(company_id);
-CREATE INDEX idx_quotation_customer ON quotation(customer_id);
-CREATE INDEX idx_quotation_created_by ON quotation(created_by);
-CREATE INDEX idx_quotation_status ON quotation(status);
-CREATE INDEX idx_quotation_expiry ON quotation(expiry_date);
-CREATE INDEX idx_refresh_token_user ON refresh_token(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_email ON "user"(email);
+CREATE INDEX IF NOT EXISTS idx_user_company ON "user"(company_id);
+CREATE INDEX IF NOT EXISTS idx_customer_company ON customers(company_id);
+CREATE INDEX IF NOT EXISTS idx_customer_created_by ON customers(created_by);
+CREATE INDEX IF NOT EXISTS idx_product_company ON products(company_id);
+CREATE INDEX IF NOT EXISTS idx_quotation_company ON quotation(company_id);
+CREATE INDEX IF NOT EXISTS idx_quotation_customer ON quotation(customer_id);
+CREATE INDEX IF NOT EXISTS idx_quotation_created_by ON quotation(created_by);
+CREATE INDEX IF NOT EXISTS idx_quotation_status ON quotation(status);
+CREATE INDEX IF NOT EXISTS idx_quotation_expiry ON quotation(expiry_date);
+CREATE INDEX IF NOT EXISTS idx_refresh_token_user ON refresh_token(user_id);
 
 -- Add missing columns to products table
 ALTER TABLE products ADD COLUMN IF NOT EXISTS unit VARCHAR(50) DEFAULT 'piece';

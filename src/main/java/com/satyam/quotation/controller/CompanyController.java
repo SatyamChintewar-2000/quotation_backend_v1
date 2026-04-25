@@ -58,7 +58,7 @@ public class CompanyController {
 
     @GetMapping("/{id}")
     @Transactional(readOnly = true)
-    public CompanyDTO getCompany(@PathVariable Long id) {
+    public CompanyDTO getCompany(@PathVariable("id") Long id) {
         return companyRepository.findById(id)
                 .filter(Company::getActive)
                 .map(companyMapper::toDto)
@@ -66,7 +66,7 @@ public class CompanyController {
     }
 
     @PutMapping("/{id}")
-    public CompanyDTO updateCompany(@PathVariable Long id, @Valid @RequestBody CompanyRequestDTO request, Authentication authentication) {
+    public CompanyDTO updateCompany(@PathVariable("id") Long id, @Valid @RequestBody CompanyRequestDTO request, Authentication authentication) {
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
         if (!"SUPER_ADMIN".equals(user.getRole())) throw new RuntimeException("Only SUPER_ADMIN can update companies");
         Company company = companyRepository.findById(id)
@@ -78,7 +78,7 @@ public class CompanyController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteCompany(@PathVariable Long id, Authentication authentication) {
+    public void deleteCompany(@PathVariable("id") Long id, Authentication authentication) {
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
         if (!"SUPER_ADMIN".equals(user.getRole()) && !"SUPERADMIN".equals(user.getRole()))
             throw new RuntimeException("Only SUPER_ADMIN can delete companies");
@@ -90,7 +90,7 @@ public class CompanyController {
     }
 
     @PutMapping("/{id}/toggle-active")
-    public CompanyDTO toggleActive(@PathVariable Long id, Authentication authentication) {
+    public CompanyDTO toggleActive(@PathVariable("id") Long id, Authentication authentication) {
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
         if (!"SUPER_ADMIN".equals(user.getRole()) && !"SUPERADMIN".equals(user.getRole()))
             throw new RuntimeException("Only SUPER_ADMIN can activate/deactivate companies");

@@ -53,6 +53,11 @@ public class QuotationServiceImpl implements QuotationService {
             quotation.setCurrency("INR");
         }
 
+        // Default expiry date to 30 days from now if not provided
+        if (quotation.getExpiryDate() == null) {
+            quotation.setExpiryDate(java.time.LocalDate.now().plusDays(30));
+        }
+
         // Load full customer
         if (quotation.getCustomer() != null && quotation.getCustomer().getId() != null) {
             Customer customer = customerRepository.findById(quotation.getCustomer().getId())

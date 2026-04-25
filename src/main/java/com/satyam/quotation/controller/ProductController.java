@@ -58,9 +58,7 @@ public class ProductController {
 
         List<com.satyam.quotation.model.Product> products;
 
-        if ("SUPER_ADMIN".equals(user.getRole())) {
-            products = productService.getAllProducts();
-        } else if ("CLIENT".equals(user.getRole()) && user.getCompanyId() != null) {
+        if ("SUPER_ADMIN".equals(user.getRole()) || "CLIENT".equals(user.getRole())) {
             products = productService.getProductsByCompany(user.getCompanyId());
         } else {
             products = productService.getProductsByUser(user.getUserId());
@@ -72,7 +70,7 @@ public class ProductController {
     }
 
     @GetMapping("/{id}")
-    public ProductDTO getProduct(@PathVariable Long id) {
+    public ProductDTO getProduct(@PathVariable("id") Long id) {
         return productService.getProductById(id)
                 .map(productMapper::toDto)
                 .orElseThrow(() -> new com.satyam.quotation.exception.ResourceNotFoundException(
@@ -81,7 +79,7 @@ public class ProductController {
 
     @PutMapping("/{id}")
     public ProductDTO updateProduct(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @Valid @RequestBody ProductRequestDTO request,
             Authentication authentication) {
 
@@ -98,7 +96,7 @@ public class ProductController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteProduct(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             Authentication authentication) {
 
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();

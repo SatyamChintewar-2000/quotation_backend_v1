@@ -68,9 +68,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiError> handleRuntime(RuntimeException ex, HttpServletRequest request) {
         String msg = ex.getMessage();
-        if (msg != null && (msg.contains("Only") || msg.contains("cannot") || msg.contains("not allowed"))) {
-            log.warn("[403] Forbidden at {}: {}", request.getRequestURI(), msg);
-            return build(HttpStatus.FORBIDDEN, "FORBIDDEN", msg, request);
+        if (msg != null && (msg.contains("Only") || msg.contains("cannot") || msg.contains("not allowed")
+                || msg.contains("already exists") || msg.contains("already registered"))) {
+            log.warn("[400] Bad request at {}: {}", request.getRequestURI(), msg);
+            return build(HttpStatus.BAD_REQUEST, "BAD_REQUEST", msg, request);
         }
         log.error("[500] Runtime error at {} — {}: {}", request.getRequestURI(), ex.getClass().getSimpleName(), msg, ex);
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR",

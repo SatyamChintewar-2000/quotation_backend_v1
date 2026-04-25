@@ -165,9 +165,7 @@ public class UserController {
 
         List<User> users;
 
-        if ("SUPER_ADMIN".equals(user.getRole())) {
-            users = userRepository.findAll();
-        } else if ("CLIENT".equals(user.getRole()) && user.getCompanyId() != null) {
+        if ("SUPER_ADMIN".equals(user.getRole()) || "CLIENT".equals(user.getRole())) {
             users = userService.getUsersByCompany(user.getCompanyId());
         } else {
             users = userRepository.findByCreatedBy(user.getUserId());
@@ -180,7 +178,7 @@ public class UserController {
 
     @GetMapping("/{id}")
     @Transactional(readOnly = true)
-    public UserDTO getUser(@PathVariable Long id) {
+    public UserDTO getUser(@PathVariable("id") Long id) {
         return userService.getUserById(id)
                 .map(userMapper::toDto)
                 .orElseThrow(() -> new com.satyam.quotation.exception.ResourceNotFoundException(
@@ -189,7 +187,7 @@ public class UserController {
 
     @PutMapping("/{id}")
     public UserDTO updateUser(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @Valid @RequestBody UserRequestDTO request,
             Authentication authentication) {
 
@@ -221,7 +219,7 @@ public class UserController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteUser(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             Authentication authentication) {
 
         CustomUserDetails currentUser = (CustomUserDetails) authentication.getPrincipal();

@@ -1,5 +1,6 @@
 package com.satyam.quotation.service.impl;
 
+import com.satyam.quotation.exception.BadRequestException;
 import com.satyam.quotation.exception.ResourceNotFoundException;
 import com.satyam.quotation.model.Product;
 import com.satyam.quotation.repository.CompanyRepository;
@@ -31,6 +32,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public Product createProduct(Product product, Long userId, Long companyId) {
+        validateImageSize(product.getImagePath());
         product.setCreatedBy(userId);
 
         if (companyId != null) {
@@ -83,6 +85,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public Product updateProduct(Long id, Product updatedProduct, Long userId) {
+        validateImageSize(updatedProduct.getImagePath());
         Product product = productRepository.findById(id)
                 .filter(Product::getActive)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
@@ -101,6 +104,17 @@ public class ProductServiceImpl implements ProductService {
         product.setUpdatedBy(userId);
 
         return productRepository.save(product);
+    }
+
+    // base64 string of 2MB image is ~2.73MB — limit raw bytes to 2MB = ~2.73MB base64
+    private void validateImageSize(String imagePath) {
+        if (imagePath != null && !imagePath.isEmpty()) {
+            // base64 encoded size * 3/4 gives approximate original byte size
+            long approxBytes = (long)(imagePath.length() * 0.75);
+            if (approxBytes > 2 * 1024 * 1024) {
+                throw new BadRequestException("Image size must be under 2MB");
+            }
+        }
     }
 
     @Override
