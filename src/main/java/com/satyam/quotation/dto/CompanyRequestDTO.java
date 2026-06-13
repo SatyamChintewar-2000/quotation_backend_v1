@@ -16,4 +16,17 @@ public class CompanyRequestDTO {
     private String city;
     private String termsAndConditions;
     private String logo;
+    
+    // Bank details for payment
+    private String bankName;
+    private String accountNumber;
+    private String ifscCode;
+    private String branchName;
+    private String upiId;
+
+    // Feature 1: PDF Theme (client can change)
+    private String pdfThemeName;
+    private String pdfAccentColor;
+    private Boolean pdfWatermarkEnabled;
+    private java.math.BigDecimal pdfWatermarkOpacity;
 }

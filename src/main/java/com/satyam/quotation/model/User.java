@@ -73,5 +73,10 @@ public class User {
 
     @Column(name = "reset_token_expiry")
     private LocalDateTime resetTokenExpiry;
-}
 
+    @Column(name = "login_otp")
+    private String loginOtp;
+
+    @Column(name = "login_otp_expiry")
+    private LocalDateTime loginOtpExpiry;
+}

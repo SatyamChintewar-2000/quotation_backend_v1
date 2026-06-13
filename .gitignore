@@ -4,6 +4,12 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+### Environment Variables ###
+.env
+.env.local
+.env.production
+application-local.properties
+
 ### STS ###
 .apt_generated
 .classpath

@@ -43,4 +43,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     
     @Query("SELECT i FROM Invoice i WHERE i.company.id = :companyId AND i.dueDate < CURRENT_DATE AND i.paymentStatus != 'PAID' AND i.active = true")
     List<Invoice> findOverdueInvoices(@Param("companyId") Long companyId);
+    
+    @Query("SELECT COUNT(i) FROM Invoice i WHERE i.createdBy = :userId AND i.active = true")
+    long countByCreatedByAndActiveTrue(@Param("userId") Long userId);
 }

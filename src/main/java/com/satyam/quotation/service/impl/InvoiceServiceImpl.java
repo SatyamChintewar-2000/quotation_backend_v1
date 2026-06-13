@@ -121,6 +121,90 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     @Override
+    @Transactional
+    public InvoiceDTO createDirectInvoice(InvoiceRequestDTO requestDTO, Long userId) {
+        log.info("Creating direct invoice for customer: {}", requestDTO.getCustomerId());
+
+        // Get customer
+        Customer customer = customerRepository.findById(requestDTO.getCustomerId())
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+
+        // Get user to determine company
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        
+        Company company = user.getCompany();
+        if (company == null) {
+            throw new IllegalStateException("User must be associated with a company");
+        }
+
+        // Create invoice
+        Invoice invoice = new Invoice();
+        invoice.setQuotation(null); // No quotation for direct invoices
+        invoice.setCustomer(customer);
+        invoice.setCompany(company);
+        invoice.setInvoiceDate(requestDTO.getInvoiceDate() != null ? requestDTO.getInvoiceDate() : LocalDate.now());
+        invoice.setDueDate(requestDTO.getDueDate() != null ? requestDTO.getDueDate() : LocalDate.now().plusDays(30));
+        invoice.setDiscountPercentage(requestDTO.getDiscountPercentage() != null ? requestDTO.getDiscountPercentage() : BigDecimal.ZERO);
+        invoice.setNotes(requestDTO.getNotes());
+        invoice.setTermsAndConditions(requestDTO.getTermsAndConditions());
+        invoice.setStatus("DRAFT");
+        invoice.setPaymentStatus("PENDING");
+        invoice.setCreatedBy(userId);
+        invoice.setCreatedAt(LocalDateTime.now());
+        invoice.setActive(true);
+
+        // Generate invoice number
+        String invoiceNumber = generateInvoiceNumber(company.getId());
+        invoice.setInvoiceNumber(invoiceNumber);
+
+        // Save invoice first
+        Invoice savedInvoice = invoiceRepository.save(invoice);
+
+        // Add items from request
+        if (requestDTO.getItems() != null && !requestDTO.getItems().isEmpty()) {
+            for (InvoiceItemDTO itemDTO : requestDTO.getItems()) {
+                InvoiceItem invoiceItem = new InvoiceItem();
+                invoiceItem.setInvoice(savedInvoice);
+                
+                // Get product if productId is provided
+                if (itemDTO.getProductId() != null) {
+                    Product product = productRepository.findById(itemDTO.getProductId())
+                            .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + itemDTO.getProductId()));
+                    invoiceItem.setProduct(product);
+                    invoiceItem.setProductName(product.getProductName());
+                    invoiceItem.setProductDescription(product.getDescription());
+                }
+                
+                invoiceItem.setQuantity(itemDTO.getQuantity());
+                invoiceItem.setUnitPrice(itemDTO.getUnitPrice());
+                invoiceItem.setDiscountPercentage(itemDTO.getDiscountPercentage() != null ? itemDTO.getDiscountPercentage() : BigDecimal.ZERO);
+                invoiceItem.setTaxPercentage(itemDTO.getTaxPercentage() != null ? itemDTO.getTaxPercentage() : BigDecimal.ZERO);
+                
+                // Calculate amounts
+                BigDecimal itemTotal = itemDTO.getUnitPrice().multiply(BigDecimal.valueOf(itemDTO.getQuantity()));
+                BigDecimal discountAmount = itemTotal.multiply(invoiceItem.getDiscountPercentage()).divide(BigDecimal.valueOf(100));
+                BigDecimal afterDiscount = itemTotal.subtract(discountAmount);
+                BigDecimal taxAmount = afterDiscount.multiply(invoiceItem.getTaxPercentage()).divide(BigDecimal.valueOf(100));
+                BigDecimal total = afterDiscount.add(taxAmount);
+                
+                invoiceItem.setItemTotal(itemTotal);
+                invoiceItem.setTaxAmount(taxAmount);
+                invoiceItem.setTotal(total);
+                
+                invoiceItemRepository.save(invoiceItem);
+            }
+        }
+
+        // Calculate totals
+        calculateInvoiceTotals(savedInvoice);
+
+        log.info("Created direct invoice: {} for customer: {}", invoiceNumber, customer.getCustomerName());
+
+        return convertToDTO(savedInvoice);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Optional<InvoiceDTO> getInvoiceById(Long id) {
         return invoiceRepository.findById(id)
@@ -135,6 +219,15 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .filter(Invoice::getActive)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found: " + invoiceNumber));
         return convertToDTO(invoice);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InvoiceDTO> getAllInvoices() {
+        return invoiceRepository.findAll().stream()
+                .filter(Invoice::getActive)
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -481,7 +574,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         InvoiceDTO dto = new InvoiceDTO();
         dto.setId(invoice.getId());
         dto.setInvoiceNumber(invoice.getInvoiceNumber());
-        dto.setQuotationId(invoice.getQuotation().getId());
+        // Handle null quotation for direct invoices
+        dto.setQuotationId(invoice.getQuotation() != null ? invoice.getQuotation().getId() : null);
         dto.setCustomerId(invoice.getCustomer().getId());
         dto.setCustomerName(invoice.getCustomer().getCustomerName());
         dto.setCompanyId(invoice.getCompany().getId());

@@ -2,6 +2,7 @@ package com.satyam.quotation.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.security.Key;
@@ -10,9 +11,14 @@ import java.util.Date;
 @Service
 public class JwtService {
 
-    private final String SECRET = "mySecretKeyForJWTTokenGenerationThatIsLongEnough123";
-    private final long ACCESS_TOKEN_EXPIRATION = 1000 * 60 * 15; // 15 minutes
-    private final long REFRESH_TOKEN_EXPIRATION = 1000 * 60 * 60 * 24 * 7; // 7 days
+    @Value("${jwt.secret}")
+    private String SECRET;
+    
+    @Value("${jwt.access-token-expiry}")
+    private long ACCESS_TOKEN_EXPIRATION;
+    
+    @Value("${jwt.refresh-token-expiry}")
+    private long REFRESH_TOKEN_EXPIRATION;
 
     private Key getSignKey() {
         return Keys.hmacShaKeyFor(SECRET.getBytes());

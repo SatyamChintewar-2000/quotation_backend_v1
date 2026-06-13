@@ -128,21 +128,28 @@ public class UserController {
         }
 
         // Set company
-        if ("SUPER_ADMIN".equals(currentUserRole) && 
-            ("CLIENT".equals(requestedRoleName) || "STAFF".equals(requestedRoleName))) {
+        if ("SUPER_ADMIN".equals(currentUserRole)) {
             // SUPER_ADMIN creating CLIENT or STAFF - use companyId from request
-            if (request.getCompanyId() != null) {
-                var company = companyRepository.findById(request.getCompanyId())
-                        .orElseThrow(() -> new RuntimeException("Company not found with id: " + request.getCompanyId()));
-                user.setCompany(company);
-            } else {
-                throw new RuntimeException("Company ID is required when creating CLIENT or STAFF users");
+            if ("CLIENT".equals(requestedRoleName) || "STAFF".equals(requestedRoleName)) {
+                if (request.getCompanyId() != null) {
+                    var company = companyRepository.findById(request.getCompanyId())
+                            .orElseThrow(() -> new RuntimeException("Company not found with id: " + request.getCompanyId()));
+                    user.setCompany(company);
+                } else {
+                    throw new RuntimeException("Company ID is required when creating CLIENT or STAFF users");
+                }
             }
-        } else if (currentUser.getCompanyId() != null) {
+            // SUPER_ADMIN creating another SUPER_ADMIN - no company needed
+        } else if ("CLIENT".equals(currentUserRole)) {
             // CLIENT creating STAFF - inherit company from current user
+            if (currentUser.getCompanyId() == null) {
+                throw new RuntimeException("Cannot create user: Current user has no company assigned. Please contact administrator.");
+            }
             var company = companyRepository.findById(currentUser.getCompanyId())
-                    .orElseThrow(() -> new RuntimeException("Company not found"));
+                    .orElseThrow(() -> new RuntimeException("Company not found with id: " + currentUser.getCompanyId()));
             user.setCompany(company);
+            
+            log.info("CLIENT user {} creating STAFF user with company ID: {}", currentUser.getUserId(), company.getId());
         }
         
         // Set creator
@@ -165,10 +172,18 @@ public class UserController {
 
         List<User> users;
 
-        if ("SUPER_ADMIN".equals(user.getRole()) || "CLIENT".equals(user.getRole())) {
+        if ("SUPER_ADMIN".equals(user.getRole())) {
+            // SUPER_ADMIN can see ALL users from ALL companies
+            users = userService.getAllUsers();
+            log.info("SUPER_ADMIN fetching all users: {} users found", users.size());
+        } else if ("CLIENT".equals(user.getRole())) {
+            // CLIENT can see users from their company only
             users = userService.getUsersByCompany(user.getCompanyId());
+            log.info("CLIENT fetching users for company {}: {} users found", user.getCompanyId(), users.size());
         } else {
+            // STAFF can only see users they created
             users = userRepository.findByCreatedBy(user.getUserId());
+            log.info("STAFF fetching users created by them: {} users found", users.size());
         }
 
         return users.stream()

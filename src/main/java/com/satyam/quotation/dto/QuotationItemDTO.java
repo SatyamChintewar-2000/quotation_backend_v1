@@ -10,6 +10,10 @@ public class QuotationItemDTO {
     private Long productId;
     private String productName;
     private String productDescription;
+    private String productNameSnapshot;
+    private String productDescriptionSnapshot;
+    private String imagePath;  // Product image (from current product)
+    private String imagePathSnapshot;  // Product image snapshot (at quotation time)
     private BigDecimal unitPrice;
     private Integer quantity;
     private BigDecimal discountPercentage;

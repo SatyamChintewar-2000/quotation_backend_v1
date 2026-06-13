@@ -38,6 +38,20 @@ public class InvoiceController {
         return invoiceService.createInvoice(requestDTO, user.getUserId());
     }
 
+    @PostMapping("/direct")
+    @ResponseStatus(HttpStatus.CREATED)
+    public InvoiceDTO createDirectInvoice(@RequestBody @Valid InvoiceRequestDTO requestDTO,
+                                         Authentication authentication) {
+        CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+        log.info("User {} creating direct invoice for customer {}", user.getUserId(), requestDTO.getCustomerId());
+        
+        if (requestDTO.getCustomerId() == null) {
+            throw new IllegalArgumentException("Customer ID is required for direct invoices");
+        }
+        
+        return invoiceService.createDirectInvoice(requestDTO, user.getUserId());
+    }
+
     @GetMapping
     @Transactional(readOnly = true)
     public List<InvoiceDTO> getInvoices(Authentication authentication) {
@@ -45,9 +59,13 @@ public class InvoiceController {
         String role = user.getRole();
         log.info("Fetching invoices for user {} (role: {})", user.getUserId(), role);
 
-        // SUPERADMIN / CLIENT / ADMIN → company-wide invoices
-        if ("SUPER_ADMIN".equalsIgnoreCase(role) || "SUPERADMIN".equalsIgnoreCase(role)
-                || "CLIENT".equalsIgnoreCase(role) || "ADMIN".equalsIgnoreCase(role)) {
+        // SUPER_ADMIN → all invoices from all companies
+        if ("SUPER_ADMIN".equalsIgnoreCase(role) || "SUPERADMIN".equalsIgnoreCase(role)) {
+            return invoiceService.getAllInvoices();
+        }
+
+        // CLIENT / ADMIN → company-wide invoices
+        if ("CLIENT".equalsIgnoreCase(role) || "ADMIN".equalsIgnoreCase(role)) {
             return invoiceService.getInvoicesByCompany(user.getCompanyId());
         }
 

@@ -22,6 +22,9 @@ public class ProductRequestDTO {
 
     private String description;
 
+    // Optional: used by SUPER_ADMIN to specify which company the product belongs to
+    private Long companyId;
+
     @NotNull(message = "Price is required")
     @Positive(message = "Price must be positive")
     private BigDecimal price;

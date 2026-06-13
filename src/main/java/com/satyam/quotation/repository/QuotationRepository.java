@@ -3,6 +3,7 @@ package com.satyam.quotation.repository;
 import com.satyam.quotation.model.Quotation;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
@@ -16,5 +17,5 @@ public interface QuotationRepository extends JpaRepository<Quotation, Long> {
     Double getTotalRevenueByCompany(Long companyId);
 
     @Query("SELECT SUM(q.totalAmount) FROM Quotation q WHERE q.createdBy = :userId")
-    Double getTotalRevenueByUser(Long userId);
+    Double getTotalRevenueByUser(@Param("userId") Long userId);
 }

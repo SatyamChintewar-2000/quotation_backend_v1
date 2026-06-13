@@ -15,4 +15,23 @@ public class CompanyDTO {
     private String termsAndConditions;
     private String logo;
     private Boolean active;
+    
+    // Bank details for payment
+    private String bankName;
+    private String accountNumber;
+    private String ifscCode;
+    private String branchName;
+    private String upiId;
+
+    // Feature 1: PDF Theme
+    private String pdfThemeName;
+    private String pdfAccentColor;
+    private Boolean pdfWatermarkEnabled;
+    private java.math.BigDecimal pdfWatermarkOpacity;
+
+    // Feature 3: Lock Company Name (read-only in DTO — set by backend only)
+    private Boolean companyNameLocked;
+
+    // License ID — read-only, auto-generated, never changes
+    private String licenseId;
 }

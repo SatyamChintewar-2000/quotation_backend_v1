@@ -29,5 +29,8 @@ public class QuotationDTO {
     private String createdByName;
     private List<QuotationItemDTO> items;
     private List<QuotationServiceDTO> services;
+
+    // Feature 2: Toggle service charges on PDF
+    private Boolean hideServiceChargesOnPdf;
 }
 

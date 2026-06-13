@@ -97,11 +97,17 @@ public class QuotationController {
 
         List<Quotation> quotations;
 
-        if ("SUPER_ADMIN".equals(user.getRole()) || "CLIENT".equals(user.getRole())) {
-            log.info("User is {}, fetching quotations for company {}", user.getRole(), user.getCompanyId());
+        if ("SUPER_ADMIN".equals(user.getRole())) {
+            // SUPER_ADMIN can see ALL quotations from ALL companies
+            log.info("SUPER_ADMIN fetching all quotations");
+            quotations = quotationService.getAllQuotations();
+        } else if ("CLIENT".equals(user.getRole())) {
+            // CLIENT can see quotations from their company only
+            log.info("CLIENT fetching quotations for company {}", user.getCompanyId());
             quotations = quotationService.getQuotationsByCompany(user.getCompanyId());
         } else {
-            log.info("User is {}, fetching quotations for user {}", user.getRole(), user.getUserId());
+            // STAFF can only see quotations they created
+            log.info("STAFF fetching quotations for user {}", user.getUserId());
             quotations = quotationService.getQuotationsByUser(user.getUserId());
         }
 

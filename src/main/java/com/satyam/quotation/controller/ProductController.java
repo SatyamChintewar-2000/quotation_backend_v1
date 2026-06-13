@@ -39,11 +39,23 @@ public class ProductController {
 
         log.info("User {} creating product {}", user.getUserId(), request.getProductName());
 
+        // Determine company ID:
+        // - SUPER_ADMIN: use companyId from request (must be provided)
+        // - Others: use company from logged-in user
+        Long companyId = user.getCompanyId();
+        if ("SUPER_ADMIN".equals(user.getRole())) {
+            if (request.getCompanyId() == null) {
+                throw new com.satyam.quotation.exception.BadRequestException(
+                    "SUPER_ADMIN must specify a companyId when creating a product");
+            }
+            companyId = request.getCompanyId();
+        }
+
         var product = productMapper.toEntity(request);
         var savedProduct = productService.createProduct(
                 product,
                 user.getUserId(),
-                user.getCompanyId()
+                companyId
         );
 
         return productMapper.toDto(savedProduct);
@@ -58,10 +70,18 @@ public class ProductController {
 
         List<com.satyam.quotation.model.Product> products;
 
-        if ("SUPER_ADMIN".equals(user.getRole()) || "CLIENT".equals(user.getRole())) {
+        if ("SUPER_ADMIN".equals(user.getRole())) {
+            // SUPER_ADMIN can see ALL products from ALL companies
+            products = productService.getAllProducts();
+            log.info("SUPER_ADMIN fetching all products: {} products found", products.size());
+        } else if ("CLIENT".equals(user.getRole())) {
+            // CLIENT can see products from their company only
             products = productService.getProductsByCompany(user.getCompanyId());
+            log.info("CLIENT fetching products for company {}: {} products found", user.getCompanyId(), products.size());
         } else {
+            // STAFF can only see products they created
             products = productService.getProductsByUser(user.getUserId());
+            log.info("STAFF fetching products created by them: {} products found", products.size());
         }
 
         return products.stream()

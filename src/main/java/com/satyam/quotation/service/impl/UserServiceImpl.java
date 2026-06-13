@@ -39,6 +39,12 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<User> getAllUsers() {
+        return userRepository.findAll();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<User> getUsersByCompany(Long companyId) {
         return userRepository.findByCompanyId(companyId);
     }

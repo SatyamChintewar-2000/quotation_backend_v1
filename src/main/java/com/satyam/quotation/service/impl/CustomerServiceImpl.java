@@ -60,6 +60,12 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<Customer> getAllCustomers() {
+        return customerRepository.findAll();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Customer> getCustomersByCompany(Long companyId) {
         return customerRepository.findByCompanyId(companyId);
     }

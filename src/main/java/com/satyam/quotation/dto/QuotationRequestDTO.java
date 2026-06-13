@@ -37,4 +37,7 @@ public class QuotationRequestDTO {
     private List<QuotationItemRequestDTO> items;
 
     private List<QuotationServiceDTO> services;
+
+    // Feature 2: Toggle service charges visibility on PDF
+    private Boolean hideServiceChargesOnPdf = false;
 }

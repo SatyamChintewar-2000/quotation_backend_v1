@@ -30,9 +30,9 @@ public class QuotationServiceImpl implements QuotationService {
     private final CustomerRepository customerRepository;
 
     public QuotationServiceImpl(QuotationRepository quotationRepository,
-                                QuotationBusinessService businessService,
-                                ProductRepository productRepository,
-                                CustomerRepository customerRepository) {
+            QuotationBusinessService businessService,
+            ProductRepository productRepository,
+            CustomerRepository customerRepository) {
         this.quotationRepository = quotationRepository;
         this.businessService = businessService;
         this.productRepository = productRepository;
@@ -151,22 +151,45 @@ public class QuotationServiceImpl implements QuotationService {
         }
 
         // Update all fields
-        if (updatedQuotation.getStatus() != null)            quotation.setStatus(updatedQuotation.getStatus());
-        if (updatedQuotation.getCustomer() != null)          quotation.setCustomer(updatedQuotation.getCustomer());
-        if (updatedQuotation.getExpiryDate() != null)        quotation.setExpiryDate(updatedQuotation.getExpiryDate());
-        if (updatedQuotation.getQuotationDate() != null)     quotation.setQuotationDate(updatedQuotation.getQuotationDate());
-        if (updatedQuotation.getQuotationCode() != null)     quotation.setQuotationCode(updatedQuotation.getQuotationCode());
-        if (updatedQuotation.getDeliveryDate() != null)      quotation.setDeliveryDate(updatedQuotation.getDeliveryDate());
-        if (updatedQuotation.getExecutiveName() != null)     quotation.setExecutiveName(updatedQuotation.getExecutiveName());
-        if (updatedQuotation.getNotes() != null)             quotation.setNotes(updatedQuotation.getNotes());
-        if (updatedQuotation.getTermsAndConditions() != null) quotation.setTermsAndConditions(updatedQuotation.getTermsAndConditions());
-        if (updatedQuotation.getDiscountPercentage() != null) quotation.setDiscountPercentage(updatedQuotation.getDiscountPercentage());
+        if (updatedQuotation.getStatus() != null)
+            quotation.setStatus(updatedQuotation.getStatus());
+        if (updatedQuotation.getCustomer() != null)
+            quotation.setCustomer(updatedQuotation.getCustomer());
+        if (updatedQuotation.getExpiryDate() != null)
+            quotation.setExpiryDate(updatedQuotation.getExpiryDate());
+        if (updatedQuotation.getQuotationDate() != null)
+            quotation.setQuotationDate(updatedQuotation.getQuotationDate());
+        if (updatedQuotation.getQuotationCode() != null)
+            quotation.setQuotationCode(updatedQuotation.getQuotationCode());
+        if (updatedQuotation.getDeliveryDate() != null)
+            quotation.setDeliveryDate(updatedQuotation.getDeliveryDate());
+        if (updatedQuotation.getExecutiveName() != null)
+            quotation.setExecutiveName(updatedQuotation.getExecutiveName());
+        if (updatedQuotation.getNotes() != null)
+            quotation.setNotes(updatedQuotation.getNotes());
+        if (updatedQuotation.getTermsAndConditions() != null)
+            quotation.setTermsAndConditions(updatedQuotation.getTermsAndConditions());
+        if (updatedQuotation.getDiscountPercentage() != null)
+            quotation.setDiscountPercentage(updatedQuotation.getDiscountPercentage());
+
+        // Feature 2: Update hide service charges flag
+        quotation.setHideServiceChargesOnPdf(
+            updatedQuotation.getHideServiceChargesOnPdf() != null
+                ? updatedQuotation.getHideServiceChargesOnPdf()
+                : Boolean.FALSE
+        );
 
         // Update items
         if (updatedQuotation.getItems() != null) {
             quotation.getItems().clear();
             for (QuotationItem item : updatedQuotation.getItems()) {
                 item.setQuotation(quotation);
+                if (item.getProduct() != null && item.getProduct().getId() != null) {
+                    Product product = productRepository.findById(item.getProduct().getId())
+                            .orElseThrow(() -> new ResourceNotFoundException(
+                                    "Product not found with id: " + item.getProduct().getId()));
+                    item.setProduct(product);
+                }
                 businessService.captureProductSnapshot(item);
                 quotation.getItems().add(item);
             }

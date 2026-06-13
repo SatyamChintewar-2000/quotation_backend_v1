@@ -132,4 +132,9 @@ public class Quotation {
 
     @Column(name = "last_reminder_sent_at")
     private LocalDateTime lastReminderSentAt;
+
+    // Feature 2: Toggle service charges visibility on PDF
+    @Column(name = "hide_service_charges_on_pdf")
+    @Builder.Default
+    private Boolean hideServiceChargesOnPdf = false;
 }

@@ -49,6 +49,22 @@ public class Company {
     @Column(name = "logo")
     private String logo;
 
+    // Bank details for payment
+    @Column(name = "bank_name")
+    private String bankName;
+
+    @Column(name = "account_number")
+    private String accountNumber;
+
+    @Column(name = "ifsc_code")
+    private String ifscCode;
+
+    @Column(name = "branch_name")
+    private String branchName;
+
+    @Column(name = "upi_id")
+    private String upiId;
+
     @Column(name = "created_by")
     private Long createdBy;
 
@@ -72,5 +88,31 @@ public class Company {
 
     @Column(name = "deleted_by")
     private Long deletedBy;
+
+    // ── License ID — auto-generated on creation, never changes ───────────────
+    @Column(name = "license_id", unique = true, updatable = false, length = 30)
+    private String licenseId;
+
+    // ── Feature 1: PDF Theme ──────────────────────────────────────────────────
+    @Column(name = "pdf_theme_name", length = 50)
+    @Builder.Default
+    private String pdfThemeName = "navy";
+
+    @Column(name = "pdf_accent_color", length = 7)
+    @Builder.Default
+    private String pdfAccentColor = "#1e3a8a";
+
+    @Column(name = "pdf_watermark_enabled")
+    @Builder.Default
+    private Boolean pdfWatermarkEnabled = false;
+
+    @Column(name = "pdf_watermark_opacity", precision = 3, scale = 2)
+    @Builder.Default
+    private java.math.BigDecimal pdfWatermarkOpacity = new java.math.BigDecimal("0.07");
+
+    // ── Feature 3: Lock Company Name ─────────────────────────────────────────
+    @Column(name = "company_name_locked")
+    @Builder.Default
+    private Boolean companyNameLocked = false;
 }
 

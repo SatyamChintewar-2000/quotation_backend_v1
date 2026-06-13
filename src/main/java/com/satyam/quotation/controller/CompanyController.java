@@ -17,6 +17,7 @@ import com.satyam.quotation.mapper.CompanyMapper;
 import com.satyam.quotation.model.Company;
 import com.satyam.quotation.repository.CompanyRepository;
 import com.satyam.quotation.security.CustomUserDetails;
+import com.satyam.quotation.util.LicenseIdGenerator;
 
 import jakarta.validation.Valid;
 
@@ -28,10 +29,12 @@ public class CompanyController {
 
     private final CompanyRepository companyRepository;
     private final CompanyMapper companyMapper;
+    private final LicenseIdGenerator licenseIdGenerator;
 
-    public CompanyController(CompanyRepository companyRepository, CompanyMapper companyMapper) {
+    public CompanyController(CompanyRepository companyRepository, CompanyMapper companyMapper, LicenseIdGenerator licenseIdGenerator) {
         this.companyRepository = companyRepository;
         this.companyMapper = companyMapper;
+        this.licenseIdGenerator = licenseIdGenerator;
     }
 
     @PostMapping
@@ -42,6 +45,8 @@ public class CompanyController {
         Company company = companyMapper.toEntity(request);
         company.setActive(true);
         company.setCreatedAt(LocalDateTime.now());
+        // Auto-generate License ID on creation
+        company.setLicenseId(licenseIdGenerator.generate(request.getCompanyName()));
         return companyMapper.toDto(companyRepository.save(company));
     }
 
@@ -123,7 +128,10 @@ public class CompanyController {
             throw new ResourceNotFoundException("No company associated with this user");
         Company company = companyRepository.findById(user.getCompanyId())
                 .orElseThrow(() -> new ResourceNotFoundException("Company not found"));
+        // Preserve company name always — only Super Admin can change it via /api/companies/{id}
+        String originalName = company.getCompanyName();
         companyMapper.updateEntity(request, company);
+        company.setCompanyName(originalName);
         company.setUpdatedAt(LocalDateTime.now());
         company.setUpdatedBy(user.getUserId());
         log.info("User {} updated their company profile", user.getUserId());

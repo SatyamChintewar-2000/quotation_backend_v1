@@ -153,8 +153,21 @@ public class QuotationBusinessServiceImpl implements QuotationBusinessService {
         quotation.setTotalDiscount(totalDiscount);
         quotation.setTotalGst(totalTax);
 
-        // Grand total = subtotal - total discount + total tax
-        BigDecimal grandTotal = subtotal.subtract(totalDiscount).add(totalTax);
+        // Add service charges to grand total
+        BigDecimal serviceTotal = BigDecimal.ZERO;
+        if (quotation.getServices() != null) {
+            for (QuotationService service : quotation.getServices()) {
+                if (service.getServicePrice() != null) {
+                    BigDecimal price = service.getServicePrice();
+                    BigDecimal tax = service.getServiceTax() != null ? service.getServiceTax() : BigDecimal.ZERO;
+                    BigDecimal serviceTaxAmount = price.multiply(tax).divide(BigDecimal.valueOf(100));
+                    serviceTotal = serviceTotal.add(price).add(serviceTaxAmount);
+                }
+            }
+        }
+
+        // Grand total = subtotal - total discount + total tax + service charges
+        BigDecimal grandTotal = subtotal.subtract(totalDiscount).add(totalTax).add(serviceTotal);
         quotation.setTotalAmount(grandTotal);
 
         log.debug("Calculated totals for quotation {}: subtotal={}, discount={}, tax={}, total={}",
@@ -173,6 +186,7 @@ public class QuotationBusinessServiceImpl implements QuotationBusinessService {
         // Capture product details at time of quoting
         item.setProductNameSnapshot(product.getProductName());
         item.setProductDescriptionSnapshot(product.getDescription());
+        item.setImagePathSnapshot(product.getImagePath());  // Capture image snapshot
         item.setUnitSnapshot(product.getUnit());
 
         // Set legacy fields for backward compatibility
@@ -223,8 +237,11 @@ public class QuotationBusinessServiceImpl implements QuotationBusinessService {
             QuotationItem duplicateItem = QuotationItem.builder()
                     .quotation(duplicate)
                     .product(originalItem.getProduct())
+                    .productName(originalItem.getProductName() != null ? originalItem.getProductName() : originalItem.getProductNameSnapshot())
+                    .productDescription(originalItem.getProductDescription() != null ? originalItem.getProductDescription() : originalItem.getProductDescriptionSnapshot())
                     .productNameSnapshot(originalItem.getProductNameSnapshot())
                     .productDescriptionSnapshot(originalItem.getProductDescriptionSnapshot())
+                    .imagePathSnapshot(originalItem.getImagePathSnapshot())
                     .unitSnapshot(originalItem.getUnitSnapshot())
                     .quantity(originalItem.getQuantity())
                     .unitPrice(originalItem.getUnitPrice())

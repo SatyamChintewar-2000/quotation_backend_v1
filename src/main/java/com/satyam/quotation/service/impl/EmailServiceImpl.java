@@ -44,10 +44,10 @@ public class EmailServiceImpl implements EmailService {
     private boolean emailEnabledConfig;
 
     public EmailServiceImpl(JavaMailSender mailSender,
-                           EmailLogRepository emailLogRepository,
-                           QuotationRepository quotationRepository,
-                           com.satyam.quotation.repository.UserRepository userRepository,
-                           AppSettingsService appSettingsService) {
+            EmailLogRepository emailLogRepository,
+            QuotationRepository quotationRepository,
+            com.satyam.quotation.repository.UserRepository userRepository,
+            AppSettingsService appSettingsService) {
         this.mailSender = mailSender;
         this.emailLogRepository = emailLogRepository;
         this.quotationRepository = quotationRepository;
@@ -174,6 +174,23 @@ public class EmailServiceImpl implements EmailService {
     }
 
     @Override
+    public void sendPasswordResetEmail(String recipientEmail, String resetCode) {
+        String subject = "Your password reset code";
+        String body = buildPasswordResetEmailBody(resetCode);
+        try {
+            if (isEmailEnabled()) {
+                sendEmail(recipientEmail, subject, body);
+                log.info("Password reset email sent to: {}", recipientEmail);
+            } else {
+                log.warn("Email sending is disabled. Password reset email would be sent to: {}", recipientEmail);
+            }
+        } catch (Exception e) {
+            log.error("Failed to send password reset email to: {}", recipientEmail, e);
+            throw new RuntimeException("Failed to send password reset email", e);
+        }
+    }
+
+    @Override
     public EmailLog retryFailedEmail(Long emailLogId) {
         EmailLog emailLog = emailLogRepository.findById(emailLogId)
                 .orElseThrow(() -> new RuntimeException("Email log not found"));
@@ -199,8 +216,8 @@ public class EmailServiceImpl implements EmailService {
     }
 
     private EmailLog sendNotificationEmail(Quotation quotation, String recipientEmail,
-                                          String subject, String body,
-                                          EmailLog.EmailType emailType, User createdBy) {
+            String subject, String body,
+            EmailLog.EmailType emailType, User createdBy) {
         EmailLog emailLog = EmailLog.builder()
                 .quotation(quotation)
                 .recipientEmail(recipientEmail)
@@ -274,71 +291,72 @@ public class EmailServiceImpl implements EmailService {
         NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(new Locale("en", "IN"));
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy");
 
-        return String.format("""
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <style>
-                        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                        .header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
-                        .content { padding: 20px; background-color: #f9f9f9; }
-                        .details { background-color: white; padding: 15px; margin: 15px 0; border-radius: 5px; }
-                        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
-                        .detail-label { font-weight: bold; color: #666; }
-                        .detail-value { color: #333; }
-                        .amount { font-size: 24px; color: #4CAF50; font-weight: bold; }
-                        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
-                        .button { background-color: #4CAF50; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 15px 0; }
-                    </style>
-                </head>
-                <body>
-                    <div class="container">
-                        <div class="header">
-                            <h1>%s</h1>
-                            <p>Quotation from %s</p>
-                        </div>
-                        <div class="content">
-                            <p>Dear %s,</p>
-                            <p>Thank you for your interest. Please find attached the quotation for your review.</p>
-                            
-                            <div class="details">
-                                <div class="detail-row">
-                                    <span class="detail-label">Quotation Number:</span>
-                                    <span class="detail-value">%s</span>
+        return String.format(
+                """
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <style>
+                                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                                .header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
+                                .content { padding: 20px; background-color: #f9f9f9; }
+                                .details { background-color: white; padding: 15px; margin: 15px 0; border-radius: 5px; }
+                                .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+                                .detail-label { font-weight: bold; color: #666; }
+                                .detail-value { color: #333; }
+                                .amount { font-size: 24px; color: #4CAF50; font-weight: bold; }
+                                .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+                                .button { background-color: #4CAF50; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 15px 0; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="container">
+                                <div class="header">
+                                    <h1>%s</h1>
+                                    <p>Quotation from %s</p>
                                 </div>
-                                <div class="detail-row">
-                                    <span class="detail-label">Date:</span>
-                                    <span class="detail-value">%s</span>
+                                <div class="content">
+                                    <p>Dear %s,</p>
+                                    <p>Thank you for your interest. Please find attached the quotation for your review.</p>
+
+                                    <div class="details">
+                                        <div class="detail-row">
+                                            <span class="detail-label">Quotation Number:</span>
+                                            <span class="detail-value">%s</span>
+                                        </div>
+                                        <div class="detail-row">
+                                            <span class="detail-label">Date:</span>
+                                            <span class="detail-value">%s</span>
+                                        </div>
+                                        <div class="detail-row">
+                                            <span class="detail-label">Valid Until:</span>
+                                            <span class="detail-value">%s</span>
+                                        </div>
+                                        <div class="detail-row">
+                                            <span class="detail-label">Total Amount:</span>
+                                            <span class="detail-value amount">%s</span>
+                                        </div>
+                                    </div>
+
+                                    <p>The detailed quotation is attached as a PDF file. Please review it and let us know if you have any questions.</p>
+
+                                    <p>This quotation is valid until <strong>%s</strong>. Please feel free to contact us if you need any clarification.</p>
+
+                                    <p>We look forward to doing business with you.</p>
+
+                                    <p>Best regards,<br>
+                                    <strong>%s</strong><br>
+                                    %s</p>
                                 </div>
-                                <div class="detail-row">
-                                    <span class="detail-label">Valid Until:</span>
-                                    <span class="detail-value">%s</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="detail-label">Total Amount:</span>
-                                    <span class="detail-value amount">%s</span>
+                                <div class="footer">
+                                    <p>This is an automated email. Please do not reply to this email.</p>
+                                    <p>&copy; %s %s. All rights reserved.</p>
                                 </div>
                             </div>
-                            
-                            <p>The detailed quotation is attached as a PDF file. Please review it and let us know if you have any questions.</p>
-                            
-                            <p>This quotation is valid until <strong>%s</strong>. Please feel free to contact us if you need any clarification.</p>
-                            
-                            <p>We look forward to doing business with you.</p>
-                            
-                            <p>Best regards,<br>
-                            <strong>%s</strong><br>
-                            %s</p>
-                        </div>
-                        <div class="footer">
-                            <p>This is an automated email. Please do not reply to this email.</p>
-                            <p>&copy; %s %s. All rights reserved.</p>
-                        </div>
-                    </div>
-                </body>
-                </html>
-                """,
+                        </body>
+                        </html>
+                        """,
                 quotation.getQuotationNumber(),
                 quotation.getCompany().getCompanyName(),
                 quotation.getCustomer().getCustomerName(),
@@ -350,8 +368,7 @@ public class EmailServiceImpl implements EmailService {
                 quotation.getCompany().getCompanyName(),
                 getCreatorName(quotation),
                 LocalDateTime.now().getYear(),
-                quotation.getCompany().getCompanyName()
-        );
+                quotation.getCompany().getCompanyName());
     }
 
     private String buildApprovedEmailBody(Quotation quotation) {
@@ -390,84 +407,117 @@ public class EmailServiceImpl implements EmailService {
                 getCreatorName(quotation),
                 quotation.getQuotationNumber(),
                 quotation.getCustomer().getCustomerName(),
-                currencyFormat.format(quotation.getTotalAmount())
-        );
+                currencyFormat.format(quotation.getTotalAmount()));
     }
 
     private String buildRejectedEmailBody(Quotation quotation) {
-        return String.format("""
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <style>
-                        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                        .header { background-color: #f44336; color: white; padding: 20px; text-align: center; }
-                        .content { padding: 20px; background-color: #f9f9f9; }
-                    </style>
-                </head>
-                <body>
-                    <div class="container">
-                        <div class="header">
-                            <h1>Quotation Rejected</h1>
-                        </div>
-                        <div class="content">
-                            <p>Dear %s,</p>
-                            <p>Your quotation <strong>%s</strong> has been rejected by the customer.</p>
-                            <p><strong>Customer:</strong> %s</p>
-                            <p>You may want to follow up with the customer to understand their concerns or create a revised quotation.</p>
-                            <p>Best regards,<br>Quotation System</p>
-                        </div>
-                    </div>
-                </body>
-                </html>
-                """,
+        return String.format(
+                """
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <style>
+                                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                                .header { background-color: #f44336; color: white; padding: 20px; text-align: center; }
+                                .content { padding: 20px; background-color: #f9f9f9; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="container">
+                                <div class="header">
+                                    <h1>Quotation Rejected</h1>
+                                </div>
+                                <div class="content">
+                                    <p>Dear %s,</p>
+                                    <p>Your quotation <strong>%s</strong> has been rejected by the customer.</p>
+                                    <p><strong>Customer:</strong> %s</p>
+                                    <p>You may want to follow up with the customer to understand their concerns or create a revised quotation.</p>
+                                    <p>Best regards,<br>Quotation System</p>
+                                </div>
+                            </div>
+                        </body>
+                        </html>
+                        """,
                 getCreatorName(quotation),
                 quotation.getQuotationNumber(),
-                quotation.getCustomer().getCustomerName()
-        );
+                quotation.getCustomer().getCustomerName());
     }
 
     private String buildExpiryWarningEmailBody(Quotation quotation) {
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy");
 
-        return String.format("""
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <style>
-                        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                        .header { background-color: #FF9800; color: white; padding: 20px; text-align: center; }
-                        .content { padding: 20px; background-color: #f9f9f9; }
-                        .warning { background-color: #fff3cd; border-left: 4px solid #FF9800; padding: 15px; margin: 15px 0; }
-                    </style>
-                </head>
-                <body>
-                    <div class="container">
-                        <div class="header">
-                            <h1>⚠️ Quotation Expiring Soon</h1>
-                        </div>
-                        <div class="content">
-                            <p>Dear %s,</p>
-                            <div class="warning">
-                                <p><strong>Reminder:</strong> Your quotation <strong>%s</strong> will expire on <strong>%s</strong>.</p>
+        return String.format(
+                """
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <style>
+                                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                                .header { background-color: #FF9800; color: white; padding: 20px; text-align: center; }
+                                .content { padding: 20px; background-color: #f9f9f9; }
+                                .warning { background-color: #fff3cd; border-left: 4px solid #FF9800; padding: 15px; margin: 15px 0; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="container">
+                                <div class="header">
+                                    <h1>⚠️ Quotation Expiring Soon</h1>
+                                </div>
+                                <div class="content">
+                                    <p>Dear %s,</p>
+                                    <div class="warning">
+                                        <p><strong>Reminder:</strong> Your quotation <strong>%s</strong> will expire on <strong>%s</strong>.</p>
+                                    </div>
+                                    <p><strong>Customer:</strong> %s</p>
+                                    <p><strong>Status:</strong> %s</p>
+                                    <p>Please follow up with the customer if you haven't received a response yet.</p>
+                                    <p>Best regards,<br>Quotation System</p>
+                                </div>
                             </div>
-                            <p><strong>Customer:</strong> %s</p>
-                            <p><strong>Status:</strong> %s</p>
-                            <p>Please follow up with the customer if you haven't received a response yet.</p>
-                            <p>Best regards,<br>Quotation System</p>
-                        </div>
-                    </div>
-                </body>
-                </html>
-                """,
+                        </body>
+                        </html>
+                        """,
                 getCreatorName(quotation),
                 quotation.getQuotationNumber(),
                 quotation.getExpiryDate().format(dateFormatter),
                 quotation.getCustomer().getCustomerName(),
-                quotation.getStatus()
-        );
+                quotation.getStatus());
+    }
+
+    private String buildPasswordResetEmailBody(String resetCode) {
+        return String.format(
+                """
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <style>
+                                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                                .header { background-color: #2563EB; color: white; padding: 20px; text-align: center; }
+                                .content { padding: 20px; background-color: #f9f9f9; }
+                                .code { display: inline-block; background: #111827; color: #fff; padding: 12px 18px; font-size: 1.2rem; letter-spacing: 0.2em; border-radius: 10px; margin: 20px 0; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="container">
+                                <div class="header">
+                                    <h1>Password Reset Code</h1>
+                                </div>
+                                <div class="content">
+                                    <p>We received a request to reset your password.</p>
+                                    <p>Use the code below to reset your password. This code expires in 30 minutes.</p>
+                                    <div class="code">%s</div>
+                                    <p>If you did not request this, you can safely ignore this email.</p>
+                                    <p>Best regards,<br>%s</p>
+                                </div>
+                            </div>
+                        </body>
+                        </html>
+                        """,
+                resetCode,
+                fromName);
     }
 
     private String buildUpdatedEmailBody(Quotation quotation) {
@@ -503,7 +553,6 @@ public class EmailServiceImpl implements EmailService {
                 quotation.getCustomer().getCustomerName(),
                 quotation.getQuotationNumber(),
                 currencyFormat.format(quotation.getTotalAmount()),
-                quotation.getCompany().getCompanyName()
-        );
+                quotation.getCompany().getCompanyName());
     }
 }

@@ -21,11 +21,11 @@ public class QuotationService {
     @Column(name = "service_name", nullable = false)
     private String serviceName;
 
-    @Column(name = "service_price")
+    @Column(name = "service_price", precision = 15, scale = 2)
     @Builder.Default
     private BigDecimal servicePrice = BigDecimal.ZERO;
 
-    @Column(name = "service_tax")
+    @Column(name = "service_tax", precision = 10, scale = 2)
     @Builder.Default
     private BigDecimal serviceTax = BigDecimal.ZERO;
 }
