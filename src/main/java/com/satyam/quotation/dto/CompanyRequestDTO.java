@@ -29,4 +29,7 @@ public class CompanyRequestDTO {
     private String pdfAccentColor;
     private Boolean pdfWatermarkEnabled;
     private java.math.BigDecimal pdfWatermarkOpacity;
+
+    // Subscription expiry (Super Admin sets this)
+    private java.time.LocalDate subscriptionExpiresAt;
 }

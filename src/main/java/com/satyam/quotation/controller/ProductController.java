@@ -79,9 +79,10 @@ public class ProductController {
             products = productService.getProductsByCompany(user.getCompanyId());
             log.info("CLIENT fetching products for company {}: {} products found", user.getCompanyId(), products.size());
         } else {
-            // STAFF can only see products they created
-            products = productService.getProductsByUser(user.getUserId());
-            log.info("STAFF fetching products created by them: {} products found", products.size());
+            // STAFF sees all products from their company — same as CLIENT
+            // They are part of the company and need to use all products to create quotations
+            products = productService.getProductsByCompany(user.getCompanyId());
+            log.info("STAFF fetching products for company {}: {} products found", user.getCompanyId(), products.size());
         }
 
         return products.stream()
@@ -124,5 +125,58 @@ public class ProductController {
         log.info("User {} deleting product {}", user.getUserId(), id);
 
         productService.deleteProduct(id, user.getUserId());
+    }
+
+    /**
+     * Bulk create products from a JSON array.
+     * Images are optional (imagePath field). All other validations apply per item.
+     * Returns count of successfully created products.
+     */
+    @PostMapping("/bulk")
+    public java.util.Map<String, Object> bulkCreateProducts(
+            @RequestBody java.util.List<ProductRequestDTO> requests,
+            Authentication authentication) {
+
+        CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+        log.info("User {} bulk uploading {} products", user.getUserId(), requests.size());
+
+        Long companyId = user.getCompanyId();
+
+        int created = 0;
+        int failed  = 0;
+        java.util.List<String> errors = new java.util.ArrayList<>();
+
+        for (int i = 0; i < requests.size(); i++) {
+            ProductRequestDTO req = requests.get(i);
+            try {
+                if (req.getProductName() == null || req.getProductName().isBlank()) {
+                    errors.add("Row " + (i + 2) + ": Product name is required");
+                    failed++;
+                    continue;
+                }
+                if (req.getPrice() == null || req.getPrice().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+                    errors.add("Row " + (i + 2) + ": Valid price is required for " + req.getProductName());
+                    failed++;
+                    continue;
+                }
+                if ("SUPER_ADMIN".equals(user.getRole())) {
+                    companyId = req.getCompanyId() != null ? req.getCompanyId() : user.getCompanyId();
+                }
+                var product = productMapper.toEntity(req);
+                // Images are optional in bulk upload — skip if not provided
+                if (req.getImagePath() == null || req.getImagePath().isBlank()) {
+                    product.setImagePath(null);
+                }
+                productService.createProduct(product, user.getUserId(), companyId);
+                created++;
+            } catch (Exception e) {
+                errors.add("Row " + (i + 2) + ": " + e.getMessage());
+                failed++;
+            }
+        }
+
+        log.info("Bulk upload complete: {} created, {} failed", created, failed);
+        return java.util.Map.of("created", created, "failed", failed, "errors", errors);
     }
 }

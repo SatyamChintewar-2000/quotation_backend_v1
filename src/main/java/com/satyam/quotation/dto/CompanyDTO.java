@@ -34,4 +34,7 @@ public class CompanyDTO {
 
     // License ID — read-only, auto-generated, never changes
     private String licenseId;
+
+    // Subscription expiry date (set by Super Admin)
+    private java.time.LocalDate subscriptionExpiresAt;
 }

@@ -145,6 +145,16 @@ public class UserController {
             if (currentUser.getCompanyId() == null) {
                 throw new RuntimeException("Cannot create user: Current user has no company assigned. Please contact administrator.");
             }
+            
+            // Enforce 5-user limit per company (CLIENT + all STAFF combined)
+            long activeUsersInCompany = userRepository.findByCompanyId(currentUser.getCompanyId())
+                    .stream()
+                    .filter(u -> Boolean.TRUE.equals(u.getActive()))
+                    .count();
+            if (activeUsersInCompany >= 5) {
+                throw new RuntimeException("USER_LIMIT_REACHED: Your plan allows a maximum of 5 users. Please contact your administrator to purchase additional user licenses.");
+            }
+            
             var company = companyRepository.findById(currentUser.getCompanyId())
                     .orElseThrow(() -> new RuntimeException("Company not found with id: " + currentUser.getCompanyId()));
             user.setCompany(company);
@@ -252,5 +262,52 @@ public class UserController {
         userRepository.save(user);
         
         log.info("User {} successfully deleted (soft delete)", id);
+    }
+
+    /**
+     * Admin resets another user's password directly (no email token needed).
+     * SUPER_ADMIN can reset any user's password.
+     * CLIENT can reset passwords of STAFF users in their own company.
+     */
+    @PutMapping("/{id}/reset-password")
+    public java.util.Map<String, String> resetUserPassword(
+            @PathVariable("id") Long id,
+            @RequestBody java.util.Map<String, String> body,
+            Authentication authentication) {
+
+        CustomUserDetails currentUser = (CustomUserDetails) authentication.getPrincipal();
+        String newPassword = body.get("newPassword");
+
+        if (newPassword == null || newPassword.length() < 6) {
+            throw new com.satyam.quotation.exception.BadRequestException("Password must be at least 6 characters");
+        }
+
+        User targetUser = userRepository.findById(id)
+                .orElseThrow(() -> new com.satyam.quotation.exception.ResourceNotFoundException("User not found"));
+
+        String currentRole = currentUser.getRole();
+
+        // SUPER_ADMIN can reset anyone's password
+        // CLIENT can only reset STAFF passwords in their own company
+        if ("CLIENT".equals(currentRole)) {
+            String targetRole = targetUser.getRole() != null ? targetUser.getRole().getRoleName() : "";
+            if (!"STAFF".equals(targetRole)) {
+                throw new RuntimeException("You can only reset passwords for STAFF users");
+            }
+            Long targetCompanyId = targetUser.getCompany() != null ? targetUser.getCompany().getId() : null;
+            if (!currentUser.getCompanyId().equals(targetCompanyId)) {
+                throw new RuntimeException("You can only reset passwords for users in your company");
+            }
+        } else if (!"SUPER_ADMIN".equals(currentRole)) {
+            throw new RuntimeException("You are not authorised to reset other users' passwords");
+        }
+
+        targetUser.setPassword(passwordEncoder.encode(newPassword));
+        targetUser.setUpdatedAt(LocalDateTime.now());
+        targetUser.setUpdatedBy(currentUser.getUserId());
+        userRepository.save(targetUser);
+
+        log.info("User {} reset password for user {}", currentUser.getUserId(), id);
+        return java.util.Map.of("message", "Password reset successfully");
     }
 }

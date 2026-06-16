@@ -114,5 +114,9 @@ public class Company {
     @Column(name = "company_name_locked")
     @Builder.Default
     private Boolean companyNameLocked = false;
+
+    // ── Subscription expiry ───────────────────────────────────────────────────
+    @Column(name = "subscription_expires_at")
+    private java.time.LocalDate subscriptionExpiresAt;
 }
 

@@ -88,6 +88,23 @@ public class AuthController {
 
             CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
             var user = userDetails.getUser();
+
+            // Subscription expiry check — CLIENT and STAFF users are blocked if company subscription expired
+            String role = user.getRole() != null ? user.getRole().getRoleName() : "";
+            if (("CLIENT".equals(role) || "STAFF".equals(role)) && user.getCompany() != null) {
+                java.time.LocalDate expiry = user.getCompany().getSubscriptionExpiresAt();
+                if (expiry != null && expiry.isBefore(java.time.LocalDate.now())) {
+                    log.warn("Login blocked — subscription expired for company {} on {}",
+                            user.getCompany().getId(), expiry);
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body(Map.of(
+                                "error", "SUBSCRIPTION_EXPIRED",
+                                "message", "Your subscription expired on " + expiry + ". Please contact support to renew.",
+                                "expiredOn", expiry.toString()
+                            ));
+                }
+            }
+
             return ResponseEntity.ok(buildAuthPayload(user));
         } catch (Exception e) {
             log.error("Login failed for email: {} | Exception type: {} | Message: {}",
