@@ -10,6 +10,8 @@ import com.satyam.quotation.repository.*;
 import com.satyam.quotation.service.InvoiceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +37,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final CompanyRepository companyRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final CacheManager cacheManager;
 
     public InvoiceServiceImpl(InvoiceRepository invoiceRepository,
                              InvoiceItemRepository invoiceItemRepository,
@@ -44,7 +47,8 @@ public class InvoiceServiceImpl implements InvoiceService {
                              CustomerRepository customerRepository,
                              CompanyRepository companyRepository,
                              ProductRepository productRepository,
-                             UserRepository userRepository) {
+                             UserRepository userRepository,
+                             CacheManager cacheManager) {
         this.invoiceRepository = invoiceRepository;
         this.invoiceItemRepository = invoiceItemRepository;
         this.invoicePaymentRepository = invoicePaymentRepository;
@@ -54,6 +58,17 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.companyRepository = companyRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
+        this.cacheManager = cacheManager;
+    }
+
+    // Evict only the specific company's invoice cache — other companies unaffected
+    private void evictInvoiceCache(Long companyId, Long createdBy) {
+        var cache = cacheManager.getCache("invoices");
+        if (cache != null) {
+            if (companyId != null) cache.evict("company:" + companyId);
+            if (createdBy  != null) cache.evict("user:"    + createdBy);
+            cache.evict("all");
+        }
     }
 
     @Override
@@ -117,6 +132,7 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         log.info("Created invoice: {} from quotation: {}", invoiceNumber, quotation.getQuotationNumber());
 
+        evictInvoiceCache(quotation.getCompany().getId(), userId);
         return convertToDTO(savedInvoice);
     }
 
@@ -201,6 +217,7 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         log.info("Created direct invoice: {} for customer: {}", invoiceNumber, customer.getCustomerName());
 
+        evictInvoiceCache(company.getId(), userId);
         return convertToDTO(savedInvoice);
     }
 
@@ -223,15 +240,16 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "invoices", key = "'all'")
     public List<InvoiceDTO> getAllInvoices() {
-        return invoiceRepository.findAll().stream()
-                .filter(Invoice::getActive)
+        return invoiceRepository.findAllActive().stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "invoices", key = "'company:' + #companyId")
     public List<InvoiceDTO> getInvoicesByCompany(Long companyId) {
         return invoiceRepository.findActiveInvoicesByCompany(companyId).stream()
                 .map(this::convertToDTO)
@@ -240,9 +258,9 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "invoices", key = "'user:' + #userId")
     public List<InvoiceDTO> getInvoicesByCreatedBy(Long userId) {
-        return invoiceRepository.findAll().stream()
-                .filter(i -> Boolean.TRUE.equals(i.getActive()) && userId.equals(i.getCreatedBy()))
+        return invoiceRepository.findByCreatedByAndActiveTrue(userId).stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
@@ -336,6 +354,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         Invoice saved = invoiceRepository.save(invoice);
 
         log.info("Updated invoice: {}", saved.getInvoiceNumber());
+        Long companyId = saved.getCompany() != null ? saved.getCompany().getId() : null;
+        evictInvoiceCache(companyId, saved.getCreatedBy());
         return convertToDTO(saved);
     }
 
@@ -345,11 +365,15 @@ public class InvoiceServiceImpl implements InvoiceService {
         Invoice invoice = invoiceRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found"));
 
+        Long companyId = invoice.getCompany() != null ? invoice.getCompany().getId() : null;
+        Long createdBy = invoice.getCreatedBy();
+
         invoice.setActive(false);
         invoice.setDeletedAt(LocalDateTime.now());
         invoice.setDeletedBy(userId);
-
         invoiceRepository.save(invoice);
+
+        evictInvoiceCache(companyId, createdBy);
         log.info("Deleted invoice: {}", invoice.getInvoiceNumber());
     }
 
@@ -360,9 +384,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .filter(Invoice::getActive)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found"));
 
-        // Validate status transition
         validateStatusTransition(invoice.getStatus(), newStatus);
-
         invoice.setStatus(newStatus);
         invoice.setUpdatedAt(LocalDateTime.now());
         invoice.setUpdatedBy(userId);
@@ -370,6 +392,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         Invoice saved = invoiceRepository.save(invoice);
         log.info("Changed invoice {} status to {}", saved.getInvoiceNumber(), newStatus);
 
+        Long companyId = saved.getCompany() != null ? saved.getCompany().getId() : null;
+        evictInvoiceCache(companyId, saved.getCreatedBy());
         return convertToDTO(saved);
     }
 
@@ -388,6 +412,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         Invoice saved = invoiceRepository.save(invoice);
         log.info("Marked invoice {} as paid", saved.getInvoiceNumber());
 
+        Long companyId = saved.getCompany() != null ? saved.getCompany().getId() : null;
+        evictInvoiceCache(companyId, saved.getCreatedBy());
         return convertToDTO(saved);
     }
 
@@ -407,6 +433,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         Invoice saved = invoiceRepository.save(invoice);
         log.info("Marked invoice {} as sent", saved.getInvoiceNumber());
 
+        Long companyId = saved.getCompany() != null ? saved.getCompany().getId() : null;
+        evictInvoiceCache(companyId, saved.getCreatedBy());
         return convertToDTO(saved);
     }
 

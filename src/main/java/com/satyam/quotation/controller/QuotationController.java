@@ -7,6 +7,10 @@ import java.util.Map;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -14,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import com.satyam.quotation.dto.QuotationDTO;
+import com.satyam.quotation.dto.QuotationListDTO;
 import com.satyam.quotation.dto.QuotationRequestDTO;
 import com.satyam.quotation.mapper.QuotationMapper;
 import com.satyam.quotation.model.Company;
@@ -92,22 +97,16 @@ public class QuotationController {
 
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
 
-        log.info("Fetching quotations for user {} (role: {}, companyId: {})", 
+        log.info("Fetching quotations for user {} (role: {}, companyId: {})",
                 user.getUserId(), user.getRole(), user.getCompanyId());
 
         List<Quotation> quotations;
 
         if ("SUPER_ADMIN".equals(user.getRole())) {
-            // SUPER_ADMIN can see ALL quotations from ALL companies
-            log.info("SUPER_ADMIN fetching all quotations");
             quotations = quotationService.getAllQuotations();
         } else if ("CLIENT".equals(user.getRole())) {
-            // CLIENT can see quotations from their company only
-            log.info("CLIENT fetching quotations for company {}", user.getCompanyId());
             quotations = quotationService.getQuotationsByCompany(user.getCompanyId());
         } else {
-            // STAFF can only see quotations they created
-            log.info("STAFF fetching quotations for user {}", user.getUserId());
             quotations = quotationService.getQuotationsByUser(user.getUserId());
         }
 
@@ -125,6 +124,101 @@ public class QuotationController {
                 .map(quotationMapper::toDto)
                 .orElseThrow(() -> new com.satyam.quotation.exception.ResourceNotFoundException(
                         "Quotation not found with id: " + id));
+    }
+
+    /**
+     * Paginated list endpoint — returns QuotationListDTO (NO product images).
+     *
+     * Query params:
+     *   page  (default 0)   — zero-based page number
+     *   size  (default 10)  — records per page
+     *   sort  (default createdAt,desc)
+     *
+     * Example: GET /api/quotations/paged?page=0&size=10&sort=createdAt,desc
+     */
+    @GetMapping("/paged")
+    @Transactional(readOnly = true)
+    public ResponseEntity<Map<String, Object>> getQuotationsPaged(
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "10") int size,
+            Authentication authentication) {
+
+        CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+        // Always sort by newest first
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        Page<Quotation> quotationPage;
+        if ("SUPER_ADMIN".equals(user.getRole())) {
+            quotationPage = quotationService.getAllQuotationsPaged(pageable);
+        } else if ("CLIENT".equals(user.getRole())) {
+            quotationPage = quotationService.getQuotationsByCompanyPaged(user.getCompanyId(), pageable);
+        } else {
+            quotationPage = quotationService.getQuotationsByUserPaged(user.getUserId(), pageable);
+        }
+
+        // Map to lightweight DTO — NO images in items
+        List<QuotationListDTO> content = quotationPage.getContent().stream()
+                .map(q -> toListDto(q))
+                .toList();
+
+        return ResponseEntity.ok(Map.of(
+                "content",       content,
+                "totalElements", quotationPage.getTotalElements(),
+                "totalPages",    quotationPage.getTotalPages(),
+                "currentPage",   quotationPage.getNumber(),
+                "pageSize",      quotationPage.getSize()
+        ));
+    }
+
+    /** Map Quotation entity → QuotationListDTO (no images). */
+    private QuotationListDTO toListDto(Quotation q) {
+        QuotationListDTO dto = new QuotationListDTO();
+        dto.setId(q.getId());
+        dto.setQuotationNumber(q.getQuotationNumber());
+        dto.setCustomerId(q.getCustomer() != null ? q.getCustomer().getId() : null);
+        dto.setCustomerName(q.getCustomer() != null ? q.getCustomer().getCustomerName() : null);
+        dto.setCustomerPhone(q.getCustomer() != null ? q.getCustomer().getPhone() : null);
+        dto.setSubtotal(q.getSubtotal());
+        dto.setTotalDiscount(q.getTotalDiscount());
+        dto.setTotalGst(q.getTotalGst());
+        dto.setTotalAmount(q.getTotalAmount());
+        dto.setStatus(q.getStatus());
+        dto.setExpiryDate(q.getExpiryDate());
+        dto.setQuotationDate(q.getQuotationDate());
+        dto.setQuotationCode(q.getQuotationCode());
+        dto.setDeliveryDate(q.getDeliveryDate());
+        dto.setExecutiveName(q.getExecutiveName());
+        dto.setNotes(q.getNotes());
+        dto.setCreatedAt(q.getCreatedAt());
+        dto.setCreatedBy(q.getCreatedBy());
+        dto.setHideServiceChargesOnPdf(q.getHideServiceChargesOnPdf());
+
+        // Map items WITHOUT images
+        if (q.getItems() != null) {
+            dto.setItems(q.getItems().stream().map(item -> {
+                QuotationListDTO.QuotationListItemDTO i = new QuotationListDTO.QuotationListItemDTO();
+                i.setId(item.getId());
+                i.setProductId(item.getProduct() != null ? item.getProduct().getId() : null);
+                // Use snapshot name first (captured at time of quoting)
+                i.setProductName(item.getProductNameSnapshot() != null
+                        ? item.getProductNameSnapshot()
+                        : (item.getProductName() != null ? item.getProductName()
+                        : (item.getProduct() != null ? item.getProduct().getProductName() : null)));
+                i.setProductDescription(item.getProductDescriptionSnapshot() != null
+                        ? item.getProductDescriptionSnapshot()
+                        : item.getProductDescription());
+                i.setUnitPrice(item.getUnitPrice());
+                i.setQuantity(item.getQuantity());
+                i.setDiscountPercentage(item.getDiscountPercentage());
+                i.setTaxPercentage(item.getTaxPercentage());
+                i.setItemTotal(item.getItemTotal());
+                // imagePathSnapshot intentionally excluded
+                return i;
+            }).toList());
+        }
+
+        return dto;
     }
 
     @PutMapping("/{id}")

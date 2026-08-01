@@ -5,6 +5,7 @@ import com.satyam.quotation.repository.ProductRepository;
 import com.satyam.quotation.repository.QuotationRepository;
 import com.satyam.quotation.repository.UserRepository;
 import com.satyam.quotation.service.DashboardService;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -29,6 +30,7 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     @Override
+    @Cacheable(value = "dashboard", key = "'role:' + #role + ':id:' + #userId")
     public Map<String, Object> getDashboardData(Long userId, String role, Long companyId) {
 
         Map<String, Object> response = new HashMap<>();
@@ -43,29 +45,18 @@ public class DashboardServiceImpl implements DashboardService {
             }
 
             case "CLIENT" -> {
-                response.put("staff", userRepository.findByCompanyId(companyId).size());
-                response.put("customers", customerRepository.findByCompanyId(companyId).size());
+                response.put("staff", userRepository.countByCompanyIdAndActiveTrue(companyId));
+                response.put("customers", customerRepository.countByCompanyIdAndActiveTrue(companyId));
                 response.put("quotations", quotationRepository.findByCompanyId(companyId).size());
-                response.put("products", productRepository.findByCompanyId(companyId).size());
+                response.put("products", productRepository.countByCompanyIdAndActiveTrue(companyId));
                 response.put("revenue", quotationRepository.getTotalRevenueByCompany(companyId));
             }
 
             case "STAFF" -> {
-                response.put("customers", customerRepository.findAll().stream()
-                        .filter(c -> c.getCreatedBy() != null && 
-                                   c.getCreatedBy().equals(userId) && 
-                                   c.getActive())
-                        .count());
-                response.put("quotations", quotationRepository.findAll().stream()
-                        .filter(q -> q.getCreatedBy() != null && 
-                                   q.getCreatedBy().equals(userId) && 
-                                   q.getActive())
-                        .count());
-                response.put("products", productRepository.findAll().stream()
-                        .filter(p -> p.getCreatedBy() != null && 
-                                   p.getCreatedBy().equals(userId) && 
-                                   p.getActive())
-                        .count());
+                // Use COUNT queries instead of full table scans + Java filter
+                response.put("customers", customerRepository.countByCreatedByAndActiveTrue(userId));
+                response.put("quotations", quotationRepository.countByCreatedByAndActive(userId));
+                response.put("products", productRepository.countByCreatedByAndActiveTrue(userId));
                 response.put("revenue", quotationRepository.getTotalRevenueByUser(userId));
             }
         }

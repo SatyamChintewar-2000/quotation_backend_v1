@@ -8,6 +8,8 @@ import com.satyam.quotation.repository.EnquiryRepository;
 import com.satyam.quotation.service.EnquiryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,13 +25,26 @@ public class EnquiryServiceImpl implements EnquiryService {
     private final EnquiryRepository enquiryRepository;
     private final CompanyRepository companyRepository;
     private final CustomerRepository customerRepository;
+    private final CacheManager cacheManager;
 
     public EnquiryServiceImpl(EnquiryRepository enquiryRepository,
                                CompanyRepository companyRepository,
-                               CustomerRepository customerRepository) {
+                               CustomerRepository customerRepository,
+                               CacheManager cacheManager) {
         this.enquiryRepository = enquiryRepository;
         this.companyRepository = companyRepository;
         this.customerRepository = customerRepository;
+        this.cacheManager = cacheManager;
+    }
+
+    // Evict only the specific company's enquiry cache — other companies unaffected
+    private void evictEnquiryCache(Long companyId, Long createdBy) {
+        var cache = cacheManager.getCache("enquiries");
+        if (cache != null) {
+            if (companyId != null) cache.evict("company:" + companyId);
+            if (createdBy  != null) cache.evict("user:"    + createdBy);
+            cache.evict("all");
+        }
     }
 
     @Override
@@ -65,22 +80,24 @@ public class EnquiryServiceImpl implements EnquiryService {
         }
         
         log.info("=== CREATE ENQUIRY END ===");
+        evictEnquiryCache(saved.getCompany() != null ? saved.getCompany().getId() : null, userId);
         return saved;
     }
 
     @Override
+    @Cacheable(value = "enquiries", key = "'all'")
     public List<Enquiry> getAll() {
-        return enquiryRepository.findAll().stream()
-            .filter(e -> e.getDeletedAt() == null)
-            .toList();
+        return enquiryRepository.findAllActive();
     }
 
     @Override
+    @Cacheable(value = "enquiries", key = "'company:' + #companyId")
     public List<Enquiry> getByCompany(Long companyId) {
         return enquiryRepository.findByCompanyIdAndDeletedAtIsNull(companyId);
     }
 
     @Override
+    @Cacheable(value = "enquiries", key = "'user:' + #userId")
     public List<Enquiry> getByUser(Long userId) {
         return enquiryRepository.findByCreatedByAndDeletedAtIsNull(userId);
     }
@@ -132,6 +149,7 @@ public class EnquiryServiceImpl implements EnquiryService {
         }
         
         log.info("=== UPDATE ENQUIRY END ===");
+        evictEnquiryCache(saved.getCompany() != null ? saved.getCompany().getId() : null, userId);
         return saved;
     }
 
@@ -139,9 +157,15 @@ public class EnquiryServiceImpl implements EnquiryService {
     public void delete(Long id, Long userId) {
         Enquiry enquiry = enquiryRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Enquiry not found"));
+
+        Long companyId = enquiry.getCompany() != null ? enquiry.getCompany().getId() : null;
+        Long createdBy = enquiry.getCreatedBy();
+
         enquiry.setDeletedAt(LocalDateTime.now());
         enquiry.setDeletedBy(userId);
         enquiryRepository.save(enquiry);
+
+        evictEnquiryCache(companyId, createdBy);
     }
 
     private void convertToCustomer(Enquiry enquiry, Long userId, Long companyId) {

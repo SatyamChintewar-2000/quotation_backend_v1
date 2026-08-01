@@ -1,10 +1,11 @@
 package com.satyam.quotation.service.impl;
 
 import java.time.LocalDateTime;
-
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,24 +21,34 @@ public class CustomerServiceImpl implements CustomerService {
     private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
     private final CompanyRepository companyRepository;
+    private final CacheManager cacheManager;
 
     public CustomerServiceImpl(CustomerRepository customerRepository,
                                UserRepository userRepository,
-                               CompanyRepository companyRepository) {
+                               CompanyRepository companyRepository,
+                               CacheManager cacheManager) {
         this.customerRepository = customerRepository;
         this.userRepository = userRepository;
         this.companyRepository = companyRepository;
+        this.cacheManager = cacheManager;
+    }
+
+    // Evict only the specific company's customer cache — other companies unaffected
+    private void evictCustomerCache(Long companyId, Long createdBy) {
+        var cache = cacheManager.getCache("customers");
+        if (cache != null) {
+            if (companyId != null) cache.evict("company:" + companyId);
+            if (createdBy  != null) cache.evict("user:"    + createdBy);
+            cache.evict("all");
+        }
     }
 
     @Override
     public Customer createCustomer(Customer customer, Long userId, Long companyId) {
 
-        // Validate phone number is unique within company
         if (customer.getPhone() != null && companyId != null) {
-            boolean phoneExists = customerRepository.findByCompanyId(companyId)
-                    .stream()
-                    .anyMatch(c -> c.getPhone().equals(customer.getPhone()) && c.getActive());
-            
+            boolean phoneExists = customerRepository.existsByPhoneAndCompanyIdAndActiveTrue(
+                    customer.getPhone(), companyId);
             if (phoneExists) {
                 throw new RuntimeException("Customer with this phone number already exists in your company");
             }
@@ -55,29 +66,30 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setCreatedAt(LocalDateTime.now());
         customer.setActive(true);
 
-        return customerRepository.save(customer);
+        Customer saved = customerRepository.save(customer);
+        evictCustomerCache(companyId, userId);
+        return saved;
     }
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "customers", key = "'all'")
     public List<Customer> getAllCustomers() {
         return customerRepository.findAll();
     }
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "customers", key = "'company:' + #companyId")
     public List<Customer> getCustomersByCompany(Long companyId) {
         return customerRepository.findByCompanyId(companyId);
     }
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "customers", key = "'user:' + #userId")
     public List<Customer> getCustomersByUser(Long userId) {
-        return customerRepository.findAll().stream()
-                .filter(c -> c.getCreatedBy() != null && 
-                           c.getCreatedBy().equals(userId) && 
-                           c.getActive())
-                .toList();
+        return customerRepository.findByCreatedBy(userId);
     }
 
     @Override
@@ -88,33 +100,36 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public Customer updateCustomer(Customer customer, Long userId) {
-        // Validate phone number is unique within company (excluding current customer)
         if (customer.getPhone() != null && customer.getCompany() != null) {
-            boolean phoneExists = customerRepository.findByCompanyId(customer.getCompany().getId())
-                    .stream()
-                    .anyMatch(c -> c.getPhone().equals(customer.getPhone()) && 
-                                  c.getActive() && 
-                                  !c.getId().equals(customer.getId()));
-            
+            boolean phoneExists = customerRepository.existsByPhoneAndCompanyIdAndActiveTrueAndIdNot(
+                    customer.getPhone(), customer.getCompany().getId(), customer.getId());
             if (phoneExists) {
                 throw new RuntimeException("Customer with this phone number already exists in your company");
             }
         }
-        
+
         customer.setUpdatedBy(userId);
         customer.setUpdatedAt(LocalDateTime.now());
-        return customerRepository.save(customer);
+        Customer saved = customerRepository.save(customer);
+
+        Long companyId = saved.getCompany() != null ? saved.getCompany().getId() : null;
+        evictCustomerCache(companyId, saved.getCreatedBy());
+        return saved;
     }
 
     @Override
     public void deleteCustomer(Long id, Long userId) {
         Customer customer = customerRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Customer not found"));
-        
+
+        Long companyId = customer.getCompany() != null ? customer.getCompany().getId() : null;
+        Long createdBy = customer.getCreatedBy();
+
         customer.setActive(false);
         customer.setDeletedAt(LocalDateTime.now());
         customer.setDeletedBy(userId);
-        
         customerRepository.save(customer);
+
+        evictCustomerCache(companyId, createdBy);
     }
 }

@@ -12,6 +12,12 @@ import com.satyam.quotation.service.QuotationBusinessService;
 import com.satyam.quotation.service.QuotationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,16 +34,42 @@ public class QuotationServiceImpl implements QuotationService {
     private final QuotationBusinessService businessService;
     private final ProductRepository productRepository;
     private final CustomerRepository customerRepository;
+    private final CacheManager cacheManager;
 
     public QuotationServiceImpl(QuotationRepository quotationRepository,
             QuotationBusinessService businessService,
             ProductRepository productRepository,
-            CustomerRepository customerRepository) {
+            CustomerRepository customerRepository,
+            CacheManager cacheManager) {
         this.quotationRepository = quotationRepository;
         this.businessService = businessService;
         this.productRepository = productRepository;
         this.customerRepository = customerRepository;
+        this.cacheManager = cacheManager;
     }
+
+    // ── Targeted cache eviction helpers ──────────────────────────────────────
+
+    /**
+     * Evict only the cache entries that belong to the affected company and user.
+     * Other companies' cached data is untouched — they keep getting cache hits.
+     */
+    private void evictQuotationCache(Long companyId, Long createdBy) {
+        var cache = cacheManager.getCache("quotations");
+        if (cache != null) {
+            if (companyId != null) cache.evict("company:" + companyId);
+            if (createdBy  != null) cache.evict("user:"    + createdBy);
+            cache.evict("all"); // superadmin "all" view must always be refreshed
+        }
+        // Dashboard and reports stats are per-user/company — evict only affected ones
+        var dash = cacheManager.getCache("dashboard");
+        if (dash != null) dash.invalidate(); // small cache, safe to clear fully
+
+        var rep = cacheManager.getCache("reports");
+        if (rep != null) rep.invalidate();
+    }
+
+    // ── Write operations ──────────────────────────────────────────────────────
 
     @Override
     @Transactional
@@ -103,35 +135,65 @@ public class QuotationServiceImpl implements QuotationService {
                 saved.getItems() != null ? saved.getItems().size() : 0,
                 saved.getServices() != null ? saved.getServices().size() : 0);
 
+        // Evict only this company's cache — other clients are unaffected
+        evictQuotationCache(
+                saved.getCompany() != null ? saved.getCompany().getId() : null,
+                saved.getCreatedBy());
+
         return saved;
     }
 
+    // ── Read operations ───────────────────────────────────────────────────────
+
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "quotations", key = "'id:' + #id")
     public Optional<Quotation> getQuotationById(Long id) {
-        return quotationRepository.findById(id).filter(Quotation::getActive);
+        return quotationRepository.findByIdWithDetails(id);
     }
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "quotations", key = "'company:' + #companyId")
     public List<Quotation> getQuotationsByCompany(Long companyId) {
-        return quotationRepository.findByCompanyId(companyId).stream()
-                .filter(Quotation::getActive).toList();
+        return quotationRepository.findByCompanyId(companyId);
     }
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "quotations", key = "'user:' + #userId")
     public List<Quotation> getQuotationsByUser(Long userId) {
-        return quotationRepository.findByCreatedBy(userId).stream()
-                .filter(Quotation::getActive).toList();
+        return quotationRepository.findByCreatedBy(userId);
     }
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "quotations", key = "'all'")
     public List<Quotation> getAllQuotations() {
-        return quotationRepository.findAll().stream()
-                .filter(Quotation::getActive).toList();
+        return quotationRepository.findAllActive();
     }
+
+    // ── Paginated reads (used by history list endpoint) ───────────────────────
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<Quotation> getQuotationsByCompanyPaged(Long companyId, Pageable pageable) {
+        return quotationRepository.findPageByCompanyId(companyId, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<Quotation> getQuotationsByUserPaged(Long userId, Pageable pageable) {
+        return quotationRepository.findPageByCreatedBy(userId, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<Quotation> getAllQuotationsPaged(Pageable pageable) {
+        return quotationRepository.findAllActivePage(pageable);
+    }
+
+    // ── More write operations ─────────────────────────────────────────────────
 
     @Override
     @Transactional
@@ -150,7 +212,6 @@ public class QuotationServiceImpl implements QuotationService {
             businessService.validateQuotation(quotation, updatedQuotation.getStatus());
         }
 
-        // Update all fields
         if (updatedQuotation.getStatus() != null)
             quotation.setStatus(updatedQuotation.getStatus());
         if (updatedQuotation.getCustomer() != null)
@@ -172,14 +233,12 @@ public class QuotationServiceImpl implements QuotationService {
         if (updatedQuotation.getDiscountPercentage() != null)
             quotation.setDiscountPercentage(updatedQuotation.getDiscountPercentage());
 
-        // Feature 2: Update hide service charges flag
         quotation.setHideServiceChargesOnPdf(
             updatedQuotation.getHideServiceChargesOnPdf() != null
                 ? updatedQuotation.getHideServiceChargesOnPdf()
                 : Boolean.FALSE
         );
 
-        // Update items
         if (updatedQuotation.getItems() != null) {
             quotation.getItems().clear();
             for (QuotationItem item : updatedQuotation.getItems()) {
@@ -195,7 +254,6 @@ public class QuotationServiceImpl implements QuotationService {
             }
         }
 
-        // Update services
         if (updatedQuotation.getServices() != null) {
             quotation.getServices().clear();
             updatedQuotation.getServices().forEach(s -> {
@@ -205,12 +263,16 @@ public class QuotationServiceImpl implements QuotationService {
         }
 
         businessService.calculateTotals(quotation);
-
         quotation.setUpdatedAt(LocalDateTime.now());
         quotation.setUpdatedBy(userId);
 
         Quotation saved = quotationRepository.save(quotation);
         log.info("Updated quotation: {} to status: {}", saved.getQuotationNumber(), saved.getStatus());
+
+        evictQuotationCache(
+                saved.getCompany() != null ? saved.getCompany().getId() : null,
+                saved.getCreatedBy());
+
         return saved;
     }
 
@@ -219,10 +281,20 @@ public class QuotationServiceImpl implements QuotationService {
     public void deleteQuotation(Long id, Long userId) {
         Quotation quotation = quotationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Quotation not found"));
+
+        Long companyId  = quotation.getCompany()  != null ? quotation.getCompany().getId() : null;
+        Long createdBy  = quotation.getCreatedBy();
+
         quotation.setActive(false);
         quotation.setDeletedAt(LocalDateTime.now());
         quotation.setDeletedBy(userId);
         quotationRepository.save(quotation);
+
+        // Evict specific entry in id cache too
+        var cache = cacheManager.getCache("quotations");
+        if (cache != null) cache.evict("id:" + id);
+
+        evictQuotationCache(companyId, createdBy);
     }
 
     @Override
@@ -239,14 +311,17 @@ public class QuotationServiceImpl implements QuotationService {
     @Transactional
     public Quotation duplicateQuotation(Long quotationId, Long userId) {
         log.info("Duplicating quotation {} by user {}", quotationId, userId);
-        return businessService.duplicateQuotation(quotationId, userId);
+        Quotation saved = businessService.duplicateQuotation(quotationId, userId);
+        evictQuotationCache(
+                saved.getCompany() != null ? saved.getCompany().getId() : null,
+                saved.getCreatedBy());
+        return saved;
     }
 
     @Override
     @Transactional
     public Quotation changeStatus(Long quotationId, String newStatus, Long userId) {
-        Quotation quotation = quotationRepository.findById(quotationId)
-                .filter(Quotation::getActive)
+        Quotation quotation = quotationRepository.findByIdWithDetails(quotationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Quotation not found"));
 
         businessService.validateQuotation(quotation, newStatus);
@@ -257,6 +332,11 @@ public class QuotationServiceImpl implements QuotationService {
 
         Quotation saved = quotationRepository.save(quotation);
         log.info("Changed quotation {} status to {}", saved.getQuotationNumber(), newStatus);
+
+        evictQuotationCache(
+                saved.getCompany() != null ? saved.getCompany().getId() : null,
+                saved.getCreatedBy());
+
         return saved;
     }
 

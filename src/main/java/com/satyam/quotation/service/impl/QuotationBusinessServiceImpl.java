@@ -198,8 +198,9 @@ public class QuotationBusinessServiceImpl implements QuotationBusinessService {
             item.setUnitPrice(product.getPrice());
         }
 
-        // Set tax percentage from product if not already set
-        if (item.getTaxPercentage() == null || item.getTaxPercentage().compareTo(BigDecimal.ZERO) == 0) {
+        // Set tax percentage from product ONLY if the item has no tax set (null means not provided)
+        // If user explicitly set 0%, respect that — do NOT override with product default
+        if (item.getTaxPercentage() == null) {
             item.setTaxPercentage(product.getTaxPercentage());
         }
 
@@ -302,19 +303,13 @@ public class QuotationBusinessServiceImpl implements QuotationBusinessService {
 
     @Override
     public List<Quotation> getQuotationsByStatus(String status, Long companyId) {
-        return quotationRepository.findAll().stream()
-                .filter(Quotation::getActive)
-                .filter(q -> status.equals(q.getStatus()))
-                .filter(q -> companyId == null || companyId.equals(q.getCompany().getId()))
-                .toList();
+        // Use DB query instead of loading all quotations + Java filter
+        return quotationRepository.findByStatusAndCompany(status, companyId);
     }
 
     @Override
     public List<Quotation> getExpiredQuotations(Long companyId) {
-        return quotationRepository.findAll().stream()
-                .filter(Quotation::getActive)
-                .filter(this::isExpired)
-                .filter(q -> companyId == null || companyId.equals(q.getCompany().getId()))
-                .toList();
+        // Use DB date comparison instead of loading all quotations + Java filter
+        return quotationRepository.findExpiredQuotations(companyId);
     }
 }
