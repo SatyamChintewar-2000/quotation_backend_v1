@@ -7,6 +7,7 @@ import java.util.Optional;
 
 public interface CustomerService {
     Customer createCustomer(Customer customer, Long userId, Long companyId);
+    List<Customer> getAllCustomers();
     List<Customer> getCustomersByCompany(Long companyId);
     List<Customer> getCustomersByUser(Long userId);
     Optional<Customer> getCustomerById(Long id);

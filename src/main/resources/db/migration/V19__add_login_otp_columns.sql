@@ -1,0 +1,3 @@
+ALTER TABLE "user"
+    ADD COLUMN IF NOT EXISTS login_otp VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS login_otp_expiry TIMESTAMP;

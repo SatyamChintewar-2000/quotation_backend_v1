@@ -54,14 +54,25 @@ public class CustomerController {
     public List<CustomerDTO> getCustomers(Authentication authentication) {
 
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+        String role = user.getRole();
 
-        if ("CLIENT".equals(user.getRole())) {
+        // SUPER_ADMIN sees all customers from all companies
+        if ("SUPERADMIN".equalsIgnoreCase(role) || "SUPER_ADMIN".equalsIgnoreCase(role)) {
+            return customerService.getAllCustomers()
+                    .stream()
+                    .map(customerMapper::toDto)
+                    .toList();
+        }
+
+        // CLIENT sees their whole company
+        if ("ADMIN".equalsIgnoreCase(role) || "CLIENT".equalsIgnoreCase(role)) {
             return customerService.getCustomersByCompany(user.getCompanyId())
                     .stream()
                     .map(customerMapper::toDto)
                     .toList();
         }
 
+        // STAFF sees only their own
         return customerService.getCustomersByUser(user.getUserId())
                 .stream()
                 .map(customerMapper::toDto)
@@ -70,7 +81,7 @@ public class CustomerController {
 
     @GetMapping("/{id}")
     @Transactional(readOnly = true)
-    public CustomerDTO getCustomer(@PathVariable Long id) {
+    public CustomerDTO getCustomer(@PathVariable("id") Long id) {
         var customer = customerService.getCustomerById(id)
                 .orElseThrow(() -> new RuntimeException("Customer not found with id: " + id));
         return customerMapper.toDto(customer);
@@ -78,7 +89,7 @@ public class CustomerController {
 
     @PutMapping("/{id}")
     public CustomerDTO updateCustomer(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @Valid @RequestBody CustomerRequestDTO request,
             Authentication authentication) {
 
@@ -98,7 +109,7 @@ public class CustomerController {
 
     @DeleteMapping("/{id}")
     public void deleteCustomer(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             Authentication authentication) {
 
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();

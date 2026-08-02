@@ -32,6 +32,12 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     @Query("SELECT i FROM Invoice i WHERE i.company.id = :companyId AND i.active = true ORDER BY i.invoiceDate DESC")
     List<Invoice> findActiveInvoicesByCompany(@Param("companyId") Long companyId);
     
+    @Query("SELECT i FROM Invoice i WHERE i.active = true ORDER BY i.invoiceDate DESC")
+    List<Invoice> findAllActive();
+
+    @Query("SELECT i FROM Invoice i WHERE i.createdBy = :userId AND i.active = true ORDER BY i.invoiceDate DESC")
+    List<Invoice> findByCreatedByAndActiveTrue(@Param("userId") Long userId);
+    
     @Query("SELECT i FROM Invoice i WHERE i.company.id = :companyId AND i.status = :status AND i.active = true")
     List<Invoice> findActiveInvoicesByCompanyAndStatus(@Param("companyId") Long companyId, @Param("status") String status);
     
@@ -43,4 +49,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     
     @Query("SELECT i FROM Invoice i WHERE i.company.id = :companyId AND i.dueDate < CURRENT_DATE AND i.paymentStatus != 'PAID' AND i.active = true")
     List<Invoice> findOverdueInvoices(@Param("companyId") Long companyId);
+    
+    @Query("SELECT COUNT(i) FROM Invoice i WHERE i.createdBy = :userId AND i.active = true")
+    long countByCreatedByAndActiveTrue(@Param("userId") Long userId);
 }

@@ -39,11 +39,23 @@ public class ProductController {
 
         log.info("User {} creating product {}", user.getUserId(), request.getProductName());
 
+        // Determine company ID:
+        // - SUPER_ADMIN: use companyId from request (must be provided)
+        // - Others: use company from logged-in user
+        Long companyId = user.getCompanyId();
+        if ("SUPER_ADMIN".equals(user.getRole())) {
+            if (request.getCompanyId() == null) {
+                throw new com.satyam.quotation.exception.BadRequestException(
+                    "SUPER_ADMIN must specify a companyId when creating a product");
+            }
+            companyId = request.getCompanyId();
+        }
+
         var product = productMapper.toEntity(request);
         var savedProduct = productService.createProduct(
                 product,
                 user.getUserId(),
-                user.getCompanyId()
+                companyId
         );
 
         return productMapper.toDto(savedProduct);
@@ -59,11 +71,18 @@ public class ProductController {
         List<com.satyam.quotation.model.Product> products;
 
         if ("SUPER_ADMIN".equals(user.getRole())) {
+            // SUPER_ADMIN can see ALL products from ALL companies
             products = productService.getAllProducts();
-        } else if ("CLIENT".equals(user.getRole()) && user.getCompanyId() != null) {
+            log.info("SUPER_ADMIN fetching all products: {} products found", products.size());
+        } else if ("CLIENT".equals(user.getRole())) {
+            // CLIENT can see products from their company only
             products = productService.getProductsByCompany(user.getCompanyId());
+            log.info("CLIENT fetching products for company {}: {} products found", user.getCompanyId(), products.size());
         } else {
-            products = productService.getProductsByUser(user.getUserId());
+            // STAFF sees all products from their company — same as CLIENT
+            // They are part of the company and need to use all products to create quotations
+            products = productService.getProductsByCompany(user.getCompanyId());
+            log.info("STAFF fetching products for company {}: {} products found", user.getCompanyId(), products.size());
         }
 
         return products.stream()
@@ -72,7 +91,7 @@ public class ProductController {
     }
 
     @GetMapping("/{id}")
-    public ProductDTO getProduct(@PathVariable Long id) {
+    public ProductDTO getProduct(@PathVariable("id") Long id) {
         return productService.getProductById(id)
                 .map(productMapper::toDto)
                 .orElseThrow(() -> new com.satyam.quotation.exception.ResourceNotFoundException(
@@ -81,7 +100,7 @@ public class ProductController {
 
     @PutMapping("/{id}")
     public ProductDTO updateProduct(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @Valid @RequestBody ProductRequestDTO request,
             Authentication authentication) {
 
@@ -98,7 +117,7 @@ public class ProductController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteProduct(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             Authentication authentication) {
 
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
@@ -106,5 +125,58 @@ public class ProductController {
         log.info("User {} deleting product {}", user.getUserId(), id);
 
         productService.deleteProduct(id, user.getUserId());
+    }
+
+    /**
+     * Bulk create products from a JSON array.
+     * Images are optional (imagePath field). All other validations apply per item.
+     * Returns count of successfully created products.
+     */
+    @PostMapping("/bulk")
+    public java.util.Map<String, Object> bulkCreateProducts(
+            @RequestBody java.util.List<ProductRequestDTO> requests,
+            Authentication authentication) {
+
+        CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+        log.info("User {} bulk uploading {} products", user.getUserId(), requests.size());
+
+        Long companyId = user.getCompanyId();
+
+        int created = 0;
+        int failed  = 0;
+        java.util.List<String> errors = new java.util.ArrayList<>();
+
+        for (int i = 0; i < requests.size(); i++) {
+            ProductRequestDTO req = requests.get(i);
+            try {
+                if (req.getProductName() == null || req.getProductName().isBlank()) {
+                    errors.add("Row " + (i + 2) + ": Product name is required");
+                    failed++;
+                    continue;
+                }
+                if (req.getPrice() == null || req.getPrice().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+                    errors.add("Row " + (i + 2) + ": Valid price is required for " + req.getProductName());
+                    failed++;
+                    continue;
+                }
+                if ("SUPER_ADMIN".equals(user.getRole())) {
+                    companyId = req.getCompanyId() != null ? req.getCompanyId() : user.getCompanyId();
+                }
+                var product = productMapper.toEntity(req);
+                // Images are optional in bulk upload — skip if not provided
+                if (req.getImagePath() == null || req.getImagePath().isBlank()) {
+                    product.setImagePath(null);
+                }
+                productService.createProduct(product, user.getUserId(), companyId);
+                created++;
+            } catch (Exception e) {
+                errors.add("Row " + (i + 2) + ": " + e.getMessage());
+                failed++;
+            }
+        }
+
+        log.info("Bulk upload complete: {} created, {} failed", created, failed);
+        return java.util.Map.of("created", created, "failed", failed, "errors", errors);
     }
 }

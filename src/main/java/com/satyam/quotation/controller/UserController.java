@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.CacheManager;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -43,19 +44,34 @@ public class UserController {
     private final RoleRepository roleRepository;
     private final CompanyRepository companyRepository;
     private final PasswordEncoder passwordEncoder;
+    private final CacheManager cacheManager;
 
     public UserController(UserService userService,
                          UserMapper userMapper,
                          UserRepository userRepository,
                          RoleRepository roleRepository,
                          CompanyRepository companyRepository,
-                         PasswordEncoder passwordEncoder) {
+                         PasswordEncoder passwordEncoder,
+                         CacheManager cacheManager) {
         this.userService = userService;
         this.userMapper = userMapper;
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.companyRepository = companyRepository;
         this.passwordEncoder = passwordEncoder;
+        this.cacheManager = cacheManager;
+    }
+
+    /** Evict only the affected company's user cache — other companies unaffected. */
+    private void evictUserCache(Long companyId) {
+        var cache = cacheManager.getCache("users");
+        if (cache != null) {
+            if (companyId != null) {
+                cache.evict("company:" + companyId);
+                cache.evict("staff:"   + companyId);
+            }
+            cache.evict("all");
+        }
     }
 
     @PostMapping
@@ -65,53 +81,39 @@ public class UserController {
             Authentication authentication) {
 
         CustomUserDetails currentUser = (CustomUserDetails) authentication.getPrincipal();
-
         log.info("User {} creating new user {}", currentUser.getUserId(), request.getEmail());
 
-        // Role-based validation
         var requestedRole = roleRepository.findById(request.getRoleId())
                 .orElseThrow(() -> new RuntimeException("Role not found with id: " + request.getRoleId()));
-        
+
         String requestedRoleName = requestedRole.getRoleName();
-        String currentUserRole = currentUser.getRole();
-        
-        // CLIENT can only create STAFF users
-        if ("CLIENT".equals(currentUserRole)) {
-            if (!"STAFF".equals(requestedRoleName)) {
-                throw new RuntimeException("CLIENT users can only create STAFF users");
-            }
+        String currentUserRole   = currentUser.getRole();
+
+        if ("CLIENT".equals(currentUserRole) && !"STAFF".equals(requestedRoleName)) {
+            throw new RuntimeException("CLIENT users can only create STAFF users");
         }
-        
-        // STAFF cannot create any users (should be blocked at frontend, but double-check here)
         if ("STAFF".equals(currentUserRole)) {
             throw new RuntimeException("STAFF users cannot create other users");
         }
-        
-        // CLIENT cannot create CLIENT or SUPER_ADMIN users
-        if ("CLIENT".equals(currentUserRole) && 
-            ("CLIENT".equals(requestedRoleName) || "SUPER_ADMIN".equals(requestedRoleName))) {
+        if ("CLIENT".equals(currentUserRole) &&
+                ("CLIENT".equals(requestedRoleName) || "SUPER_ADMIN".equals(requestedRoleName))) {
             throw new RuntimeException("CLIENT users cannot create CLIENT or SUPER_ADMIN users");
         }
 
         User user = userMapper.toEntity(request);
-        
-        // Set password (should be temporary, user should reset on first login)
+
         if (request.getPassword() != null && !request.getPassword().isEmpty()) {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         } else {
-            // Generate temporary password
             user.setPassword(passwordEncoder.encode("TempPass123!"));
         }
-        
-        // Set role
         user.setRole(requestedRole);
-        
-        // Check if user with same email already exists (case-insensitive)
+
+        // Reactivate if email already exists (soft-deleted)
         var existingOpt = userRepository.findByEmailIgnoreCase(request.getEmail());
         if (existingOpt.isPresent()) {
             User existing = existingOpt.get();
             if (!existing.getActive()) {
-                // Reactivate the existing user
                 existing.setActive(true);
                 existing.setDeletedAt(null);
                 existing.setDeletedBy(null);
@@ -121,36 +123,45 @@ public class UserController {
                     existing.setPassword(passwordEncoder.encode(request.getPassword()));
                 }
                 User reactivated = userRepository.save(existing);
+                Long cid = reactivated.getCompany() != null ? reactivated.getCompany().getId() : null;
+                evictUserCache(cid);
                 return userMapper.toDto(reactivated);
             } else {
                 throw new RuntimeException("A user with this email already exists");
             }
         }
 
-        // Set company
-        if ("SUPER_ADMIN".equals(currentUserRole) && 
-            ("CLIENT".equals(requestedRoleName) || "STAFF".equals(requestedRoleName))) {
-            // SUPER_ADMIN creating CLIENT or STAFF - use companyId from request
-            if (request.getCompanyId() != null) {
-                var company = companyRepository.findById(request.getCompanyId())
-                        .orElseThrow(() -> new RuntimeException("Company not found with id: " + request.getCompanyId()));
-                user.setCompany(company);
-            } else {
-                throw new RuntimeException("Company ID is required when creating CLIENT or STAFF users");
+        // Assign company
+        if ("SUPER_ADMIN".equals(currentUserRole)) {
+            if ("CLIENT".equals(requestedRoleName) || "STAFF".equals(requestedRoleName)) {
+                if (request.getCompanyId() != null) {
+                    user.setCompany(companyRepository.findById(request.getCompanyId())
+                            .orElseThrow(() -> new RuntimeException("Company not found with id: " + request.getCompanyId())));
+                } else {
+                    throw new RuntimeException("Company ID is required when creating CLIENT or STAFF users");
+                }
             }
-        } else if (currentUser.getCompanyId() != null) {
-            // CLIENT creating STAFF - inherit company from current user
+        } else if ("CLIENT".equals(currentUserRole)) {
+            if (currentUser.getCompanyId() == null) {
+                throw new RuntimeException("Cannot create user: Current user has no company assigned.");
+            }
+            long activeUsersInCompany = userRepository.countByCompanyIdAndActiveTrue(currentUser.getCompanyId());
+            if (activeUsersInCompany >= 5) {
+                throw new RuntimeException("USER_LIMIT_REACHED: Your plan allows a maximum of 5 users.");
+            }
             var company = companyRepository.findById(currentUser.getCompanyId())
-                    .orElseThrow(() -> new RuntimeException("Company not found"));
+                    .orElseThrow(() -> new RuntimeException("Company not found with id: " + currentUser.getCompanyId()));
             user.setCompany(company);
+            log.info("CLIENT user {} creating STAFF user with company ID: {}", currentUser.getUserId(), company.getId());
         }
-        
-        // Set creator
+
         user.setCreatedBy(currentUser.getUserId());
         user.setCreatedAt(LocalDateTime.now());
         user.setActive(request.getActive() != null ? request.getActive() : true);
 
         User savedUser = userRepository.save(user);
+        Long companyId = savedUser.getCompany() != null ? savedUser.getCompany().getId() : null;
+        evictUserCache(companyId);
 
         return userMapper.toDto(savedUser);
     }
@@ -158,29 +169,24 @@ public class UserController {
     @GetMapping
     @Transactional(readOnly = true)
     public List<UserDTO> getUsers(Authentication authentication) {
-
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
-
         log.info("Fetching users for user {}, role {}", user.getUserId(), user.getRole());
 
         List<User> users;
-
         if ("SUPER_ADMIN".equals(user.getRole())) {
-            users = userRepository.findAll();
-        } else if ("CLIENT".equals(user.getRole()) && user.getCompanyId() != null) {
+            users = userService.getAllUsers();
+        } else if ("CLIENT".equals(user.getRole())) {
             users = userService.getUsersByCompany(user.getCompanyId());
         } else {
             users = userRepository.findByCreatedBy(user.getUserId());
         }
 
-        return users.stream()
-                .map(userMapper::toDto)
-                .toList();
+        return users.stream().map(userMapper::toDto).toList();
     }
 
     @GetMapping("/{id}")
     @Transactional(readOnly = true)
-    public UserDTO getUser(@PathVariable Long id) {
+    public UserDTO getUser(@PathVariable("id") Long id) {
         return userService.getUserById(id)
                 .map(userMapper::toDto)
                 .orElseThrow(() -> new com.satyam.quotation.exception.ResourceNotFoundException(
@@ -189,12 +195,11 @@ public class UserController {
 
     @PutMapping("/{id}")
     public UserDTO updateUser(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @Valid @RequestBody UserRequestDTO request,
             Authentication authentication) {
 
         CustomUserDetails currentUser = (CustomUserDetails) authentication.getPrincipal();
-
         log.info("User {} updating user {}", currentUser.getUserId(), id);
 
         User user = userRepository.findById(id)
@@ -202,18 +207,19 @@ public class UserController {
                         "User not found with id: " + id));
 
         userMapper.updateEntity(request, user);
-        
-        // Update role if changed
+
         if (request.getRoleId() != null && !request.getRoleId().equals(user.getRole().getId())) {
             var role = roleRepository.findById(request.getRoleId())
                     .orElseThrow(() -> new RuntimeException("Role not found with id: " + request.getRoleId()));
             user.setRole(role);
         }
-        
+
         user.setUpdatedAt(LocalDateTime.now());
         user.setUpdatedBy(currentUser.getUserId());
 
         User updatedUser = userRepository.save(user);
+        Long companyId = updatedUser.getCompany() != null ? updatedUser.getCompany().getId() : null;
+        evictUserCache(companyId);
 
         return userMapper.toDto(updatedUser);
     }
@@ -221,23 +227,63 @@ public class UserController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteUser(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             Authentication authentication) {
 
         CustomUserDetails currentUser = (CustomUserDetails) authentication.getPrincipal();
-
         log.info("User {} deleting user {}", currentUser.getUserId(), id);
 
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new com.satyam.quotation.exception.ResourceNotFoundException(
                         "User not found with id: " + id));
 
+        Long companyId = user.getCompany() != null ? user.getCompany().getId() : null;
+
         user.setActive(false);
         user.setDeletedAt(LocalDateTime.now());
         user.setDeletedBy(currentUser.getUserId());
-
         userRepository.save(user);
-        
+
+        evictUserCache(companyId);
         log.info("User {} successfully deleted (soft delete)", id);
+    }
+
+    @PutMapping("/{id}/reset-password")
+    public java.util.Map<String, String> resetUserPassword(
+            @PathVariable("id") Long id,
+            @RequestBody java.util.Map<String, String> body,
+            Authentication authentication) {
+
+        CustomUserDetails currentUser = (CustomUserDetails) authentication.getPrincipal();
+        String newPassword = body.get("newPassword");
+
+        if (newPassword == null || newPassword.length() < 6) {
+            throw new com.satyam.quotation.exception.BadRequestException("Password must be at least 6 characters");
+        }
+
+        User targetUser = userRepository.findById(id)
+                .orElseThrow(() -> new com.satyam.quotation.exception.ResourceNotFoundException("User not found"));
+
+        String currentRole = currentUser.getRole();
+        if ("CLIENT".equals(currentRole)) {
+            String targetRole = targetUser.getRole() != null ? targetUser.getRole().getRoleName() : "";
+            if (!"STAFF".equals(targetRole)) {
+                throw new RuntimeException("You can only reset passwords for STAFF users");
+            }
+            Long targetCompanyId = targetUser.getCompany() != null ? targetUser.getCompany().getId() : null;
+            if (!currentUser.getCompanyId().equals(targetCompanyId)) {
+                throw new RuntimeException("You can only reset passwords for users in your company");
+            }
+        } else if (!"SUPER_ADMIN".equals(currentRole)) {
+            throw new RuntimeException("You are not authorised to reset other users' passwords");
+        }
+
+        targetUser.setPassword(passwordEncoder.encode(newPassword));
+        targetUser.setUpdatedAt(LocalDateTime.now());
+        targetUser.setUpdatedBy(currentUser.getUserId());
+        userRepository.save(targetUser);
+
+        log.info("User {} reset password for user {}", currentUser.getUserId(), id);
+        return java.util.Map.of("message", "Password reset successfully");
     }
 }

@@ -12,6 +12,10 @@ public interface QuotationItemMapper {
 
     @Mapping(source = "product.id", target = "productId")
     @Mapping(source = "product.productName", target = "productName")
+    @Mapping(source = "product.imagePath", target = "imagePath")
+    @Mapping(source = "imagePathSnapshot", target = "imagePathSnapshot")
+    @Mapping(source = "productNameSnapshot", target = "productNameSnapshot")
+    @Mapping(source = "productDescriptionSnapshot", target = "productDescriptionSnapshot")
     @Mapping(source = "productDescription", target = "productDescription")
     @Mapping(source = "unitPrice", target = "unitPrice")
     @Mapping(source = "discountPercentage", target = "discountPercentage")
@@ -19,7 +23,7 @@ public interface QuotationItemMapper {
     @Mapping(source = "taxAmount", target = "taxAmount")
     @Mapping(source = "itemTotal", target = "itemTotal")
     QuotationItemDTO toDto(QuotationItem item);
-    
+
     @Mapping(source = "productId", target = "product.id")
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "quotation", ignore = true)
@@ -30,5 +34,8 @@ public interface QuotationItemMapper {
     @Mapping(target = "unitSnapshot", ignore = true)
     @Mapping(target = "taxAmount", ignore = true)
     @Mapping(target = "itemTotal", ignore = true)
+    @Mapping(target = "imagePathSnapshot", ignore = true)
+    @Mapping(target = "itemDiscountPercentage", ignore = true)
+    @Mapping(target = "total", ignore = true)
     QuotationItem toEntity(QuotationItemRequestDTO requestDTO);
 }

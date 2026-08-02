@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS invoice (
   id BIGSERIAL PRIMARY KEY,
   invoice_number VARCHAR(50) NOT NULL UNIQUE,
   quotation_id BIGINT NOT NULL REFERENCES quotation(id),
-  customer_id BIGINT NOT NULL REFERENCES customer(id),
+  customer_id BIGINT NOT NULL REFERENCES customers(id),
   company_id BIGINT NOT NULL REFERENCES company(id),
   
   invoice_date DATE NOT NULL,

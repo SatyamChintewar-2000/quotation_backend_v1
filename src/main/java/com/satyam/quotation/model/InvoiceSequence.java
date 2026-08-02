@@ -27,7 +27,6 @@ public class InvoiceSequence {
     private Company company;
     
     @Column(nullable = false)
-    @Builder.Default
     private Integer lastSequence = 0;
     
     @Column(nullable = false)

@@ -7,6 +7,10 @@ import java.util.Map;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -14,8 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import com.satyam.quotation.dto.QuotationDTO;
+import com.satyam.quotation.dto.QuotationListDTO;
 import com.satyam.quotation.dto.QuotationRequestDTO;
-import com.satyam.quotation.dto.InvoiceRequestDTO;
 import com.satyam.quotation.mapper.QuotationMapper;
 import com.satyam.quotation.model.Company;
 import com.satyam.quotation.model.EmailLog;
@@ -23,9 +27,8 @@ import com.satyam.quotation.model.Quotation;
 import com.satyam.quotation.security.CustomUserDetails;
 import com.satyam.quotation.service.AppSettingsService;
 import com.satyam.quotation.service.EmailService;
-import com.satyam.quotation.service.InvoiceService;
+import com.satyam.quotation.service.impl.PostStatusChangeService;
 import com.satyam.quotation.service.QuotationService;
-import com.satyam.quotation.service.WhatsAppService;
 
 @RestController
 @RequestMapping("/api/quotations")
@@ -36,22 +39,19 @@ public class QuotationController {
     private final QuotationService quotationService;
     private final QuotationMapper quotationMapper;
     private final EmailService emailService;
-    private final WhatsAppService whatsAppService;
     private final AppSettingsService appSettingsService;
-    private final InvoiceService invoiceService;
+    private final PostStatusChangeService postStatusChangeService;
 
     public QuotationController(QuotationService quotationService,
                               QuotationMapper quotationMapper,
                               EmailService emailService,
-                              WhatsAppService whatsAppService,
                               AppSettingsService appSettingsService,
-                              InvoiceService invoiceService) {
+                              PostStatusChangeService postStatusChangeService) {
         this.quotationService = quotationService;
         this.quotationMapper = quotationMapper;
         this.emailService = emailService;
-        this.whatsAppService = whatsAppService;
         this.appSettingsService = appSettingsService;
-        this.invoiceService = invoiceService;
+        this.postStatusChangeService = postStatusChangeService;
     }
 
     @PostMapping
@@ -65,13 +65,26 @@ public class QuotationController {
 
         // Convert DTO to entity using mapper
         Quotation quotation = quotationMapper.toEntity(requestDTO);
-        
+
         // Set user and company
         quotation.setCreatedBy(user.getUserId());
         if (user.getCompanyId() != null) {
             Company company = new Company();
             company.setId(user.getCompanyId());
             quotation.setCompany(company);
+        }
+
+        // Map services from DTO
+        if (requestDTO.getServices() != null && !requestDTO.getServices().isEmpty()) {
+            List<com.satyam.quotation.model.QuotationService> services = requestDTO.getServices().stream()
+                .map(s -> com.satyam.quotation.model.QuotationService.builder()
+                    .serviceName(s.getServiceName())
+                    .servicePrice(s.getServicePrice() != null ? s.getServicePrice() : java.math.BigDecimal.ZERO)
+                    .serviceTax(s.getServiceTax() != null ? s.getServiceTax() : java.math.BigDecimal.ZERO)
+                    .quotation(quotation)
+                    .build())
+                .collect(java.util.stream.Collectors.toList());
+            quotation.setServices(services);
         }
 
         Quotation saved = quotationService.createQuotation(quotation);
@@ -84,19 +97,16 @@ public class QuotationController {
 
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
 
-        log.info("Fetching quotations for user {} (role: {}, companyId: {})", 
+        log.info("Fetching quotations for user {} (role: {}, companyId: {})",
                 user.getUserId(), user.getRole(), user.getCompanyId());
 
         List<Quotation> quotations;
 
         if ("SUPER_ADMIN".equals(user.getRole())) {
-            log.info("User is SUPER_ADMIN, fetching all quotations");
             quotations = quotationService.getAllQuotations();
         } else if ("CLIENT".equals(user.getRole())) {
-            log.info("User is CLIENT, fetching quotations for company {}", user.getCompanyId());
             quotations = quotationService.getQuotationsByCompany(user.getCompanyId());
         } else {
-            log.info("User is {}, fetching quotations for user {}", user.getRole(), user.getUserId());
             quotations = quotationService.getQuotationsByUser(user.getUserId());
         }
 
@@ -109,16 +119,111 @@ public class QuotationController {
 
     @GetMapping("/{id}")
     @Transactional(readOnly = true)
-    public QuotationDTO getQuotation(@PathVariable Long id) {
+    public QuotationDTO getQuotation(@PathVariable("id") Long id) {
         return quotationService.getQuotationById(id)
                 .map(quotationMapper::toDto)
                 .orElseThrow(() -> new com.satyam.quotation.exception.ResourceNotFoundException(
                         "Quotation not found with id: " + id));
     }
 
+    /**
+     * Paginated list endpoint — returns QuotationListDTO (NO product images).
+     *
+     * Query params:
+     *   page  (default 0)   — zero-based page number
+     *   size  (default 10)  — records per page
+     *   sort  (default createdAt,desc)
+     *
+     * Example: GET /api/quotations/paged?page=0&size=10&sort=createdAt,desc
+     */
+    @GetMapping("/paged")
+    @Transactional(readOnly = true)
+    public ResponseEntity<Map<String, Object>> getQuotationsPaged(
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "10") int size,
+            Authentication authentication) {
+
+        CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+        // Always sort by newest first
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        Page<Quotation> quotationPage;
+        if ("SUPER_ADMIN".equals(user.getRole())) {
+            quotationPage = quotationService.getAllQuotationsPaged(pageable);
+        } else if ("CLIENT".equals(user.getRole())) {
+            quotationPage = quotationService.getQuotationsByCompanyPaged(user.getCompanyId(), pageable);
+        } else {
+            quotationPage = quotationService.getQuotationsByUserPaged(user.getUserId(), pageable);
+        }
+
+        // Map to lightweight DTO — NO images in items
+        List<QuotationListDTO> content = quotationPage.getContent().stream()
+                .map(q -> toListDto(q))
+                .toList();
+
+        return ResponseEntity.ok(Map.of(
+                "content",       content,
+                "totalElements", quotationPage.getTotalElements(),
+                "totalPages",    quotationPage.getTotalPages(),
+                "currentPage",   quotationPage.getNumber(),
+                "pageSize",      quotationPage.getSize()
+        ));
+    }
+
+    /** Map Quotation entity → QuotationListDTO (no images). */
+    private QuotationListDTO toListDto(Quotation q) {
+        QuotationListDTO dto = new QuotationListDTO();
+        dto.setId(q.getId());
+        dto.setQuotationNumber(q.getQuotationNumber());
+        dto.setCustomerId(q.getCustomer() != null ? q.getCustomer().getId() : null);
+        dto.setCustomerName(q.getCustomer() != null ? q.getCustomer().getCustomerName() : null);
+        dto.setCustomerPhone(q.getCustomer() != null ? q.getCustomer().getPhone() : null);
+        dto.setSubtotal(q.getSubtotal());
+        dto.setTotalDiscount(q.getTotalDiscount());
+        dto.setTotalGst(q.getTotalGst());
+        dto.setTotalAmount(q.getTotalAmount());
+        dto.setStatus(q.getStatus());
+        dto.setExpiryDate(q.getExpiryDate());
+        dto.setQuotationDate(q.getQuotationDate());
+        dto.setQuotationCode(q.getQuotationCode());
+        dto.setDeliveryDate(q.getDeliveryDate());
+        dto.setExecutiveName(q.getExecutiveName());
+        dto.setNotes(q.getNotes());
+        dto.setCreatedAt(q.getCreatedAt());
+        dto.setCreatedBy(q.getCreatedBy());
+        dto.setHideServiceChargesOnPdf(q.getHideServiceChargesOnPdf());
+
+        // Map items WITHOUT images
+        if (q.getItems() != null) {
+            dto.setItems(q.getItems().stream().map(item -> {
+                QuotationListDTO.QuotationListItemDTO i = new QuotationListDTO.QuotationListItemDTO();
+                i.setId(item.getId());
+                i.setProductId(item.getProduct() != null ? item.getProduct().getId() : null);
+                // Use snapshot name first (captured at time of quoting)
+                i.setProductName(item.getProductNameSnapshot() != null
+                        ? item.getProductNameSnapshot()
+                        : (item.getProductName() != null ? item.getProductName()
+                        : (item.getProduct() != null ? item.getProduct().getProductName() : null)));
+                i.setProductDescription(item.getProductDescriptionSnapshot() != null
+                        ? item.getProductDescriptionSnapshot()
+                        : item.getProductDescription());
+                i.setUnitPrice(item.getUnitPrice());
+                i.setQuantity(item.getQuantity());
+                i.setDiscountPercentage(item.getDiscountPercentage());
+                i.setTaxPercentage(item.getTaxPercentage());
+                i.setItemTotal(item.getItemTotal());
+                // imagePathSnapshot intentionally excluded
+                return i;
+            }).toList());
+        }
+
+        return dto;
+    }
+
     @PutMapping("/{id}")
     public QuotationDTO updateQuotation(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @RequestBody Quotation quotation,
             Authentication authentication) {
 
@@ -147,7 +252,7 @@ public class QuotationController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteQuotation(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             Authentication authentication) {
 
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
@@ -162,7 +267,7 @@ public class QuotationController {
      */
     @PostMapping("/{id}/send-email")
     public ResponseEntity<?> sendQuotationEmail(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @RequestBody(required = false) Map<String, String> request,
             Authentication authentication) {
 
@@ -216,7 +321,7 @@ public class QuotationController {
      */
     @PostMapping("/email/{emailLogId}/retry")
     public ResponseEntity<?> retryEmail(
-            @PathVariable Long emailLogId,
+            @PathVariable("emailLogId") Long emailLogId,
             Authentication authentication) {
 
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
@@ -248,7 +353,7 @@ public class QuotationController {
      */
     @PostMapping("/{id}/duplicate")
     public QuotationDTO duplicateQuotation(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             Authentication authentication) {
 
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
@@ -278,8 +383,9 @@ public class QuotationController {
      * Change quotation status
      */
     @PutMapping("/{id}/status")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<?> changeStatus(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @RequestBody Map<String, String> request,
             Authentication authentication) {
 
@@ -328,14 +434,14 @@ public class QuotationController {
     @GetMapping("/status/{status}")
     @Transactional(readOnly = true)
     public List<QuotationDTO> getQuotationsByStatus(
-            @PathVariable String status,
+            @PathVariable("status") String status,
             Authentication authentication) {
 
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
 
         log.info("Fetching quotations with status {} for user {}", status, user.getUserId());
 
-        Long companyId = "SUPER_ADMIN".equals(user.getRole()) ? null : user.getCompanyId();
+        Long companyId = user.getCompanyId();
 
         List<Quotation> quotations = quotationService.getQuotationsByStatus(status, companyId);
 
@@ -355,7 +461,7 @@ public class QuotationController {
 
         log.info("Fetching expired quotations for user {}", user.getUserId());
 
-        Long companyId = "SUPER_ADMIN".equals(user.getRole()) ? null : user.getCompanyId();
+        Long companyId = user.getCompanyId();
 
         List<Quotation> quotations = quotationService.getExpiredQuotations(companyId);
 
@@ -365,7 +471,8 @@ public class QuotationController {
     }
 
     /**
-     * Handle status change notifications
+     * Handle status change notifications — delegates to a REQUIRES_NEW transaction
+     * so failures never roll back the status change itself.
      */
     private void handleStatusChangeNotification(Quotation quotation, String oldStatus, String newStatus) {
         handleStatusChangeNotification(quotation, oldStatus, newStatus, null);
@@ -373,43 +480,10 @@ public class QuotationController {
 
     private void handleStatusChangeNotification(Quotation quotation, String oldStatus, String newStatus, Long userId) {
         try {
-            switch (newStatus) {
-                case "APPROVED":
-                    emailService.sendQuotationApprovedEmail(quotation);
-                    log.info("Sent approval notification for quotation: {}", quotation.getQuotationNumber());
-                    break;
-
-                case "REJECTED":
-                    emailService.sendQuotationRejectedEmail(quotation);
-                    log.info("Sent rejection notification for quotation: {}", quotation.getQuotationNumber());
-                    break;
-
-                default:
-                    break;
-            }
+            postStatusChangeService.handlePostStatusChange(quotation, oldStatus, newStatus, userId);
         } catch (Exception e) {
-            log.error("Failed to send email notification for quotation: {}", quotation.getQuotationNumber(), e);
-        }
-
-        try {
-            whatsAppService.sendStatusChangeNotification(quotation, oldStatus, newStatus);
-        } catch (Exception e) {
-            log.error("Failed to send WhatsApp notification for quotation: {}", quotation.getQuotationNumber(), e);
-        }
-
-        // Auto-create invoice when quotation is approved
-        if ("APPROVED".equals(newStatus)) {
-            try {
-                Long invoiceCreatorId = userId != null ? userId : quotation.getCreatedBy();
-                InvoiceRequestDTO invoiceRequest = new InvoiceRequestDTO();
-                invoiceRequest.setQuotationId(quotation.getId());
-                invoiceRequest.setInvoiceDate(java.time.LocalDate.now());
-                invoiceRequest.setDueDate(java.time.LocalDate.now().plusDays(30));
-                invoiceService.createInvoice(invoiceRequest, invoiceCreatorId);
-                log.info("Auto-created invoice for approved quotation: {}", quotation.getQuotationNumber());
-            } catch (Exception e) {
-                log.error("Failed to auto-create invoice for quotation: {}", quotation.getQuotationNumber(), e);
-            }
+            log.error("Post-status-change processing failed for quotation {}: {}",
+                    quotation.getQuotationNumber(), e.getMessage());
         }
     }
 }

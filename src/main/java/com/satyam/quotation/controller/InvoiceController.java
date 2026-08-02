@@ -38,17 +38,44 @@ public class InvoiceController {
         return invoiceService.createInvoice(requestDTO, user.getUserId());
     }
 
+    @PostMapping("/direct")
+    @ResponseStatus(HttpStatus.CREATED)
+    public InvoiceDTO createDirectInvoice(@RequestBody @Valid InvoiceRequestDTO requestDTO,
+                                         Authentication authentication) {
+        CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+        log.info("User {} creating direct invoice for customer {}", user.getUserId(), requestDTO.getCustomerId());
+        
+        if (requestDTO.getCustomerId() == null) {
+            throw new IllegalArgumentException("Customer ID is required for direct invoices");
+        }
+        
+        return invoiceService.createDirectInvoice(requestDTO, user.getUserId());
+    }
+
     @GetMapping
     @Transactional(readOnly = true)
     public List<InvoiceDTO> getInvoices(Authentication authentication) {
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
-        log.info("Fetching invoices for company {}", user.getCompanyId());
-        return invoiceService.getInvoicesByCompany(user.getCompanyId());
+        String role = user.getRole();
+        log.info("Fetching invoices for user {} (role: {})", user.getUserId(), role);
+
+        // SUPER_ADMIN → all invoices from all companies
+        if ("SUPER_ADMIN".equalsIgnoreCase(role) || "SUPERADMIN".equalsIgnoreCase(role)) {
+            return invoiceService.getAllInvoices();
+        }
+
+        // CLIENT / ADMIN → company-wide invoices
+        if ("CLIENT".equalsIgnoreCase(role) || "ADMIN".equalsIgnoreCase(role)) {
+            return invoiceService.getInvoicesByCompany(user.getCompanyId());
+        }
+
+        // STAFF → only invoices they created (via quotations they created)
+        return invoiceService.getInvoicesByCreatedBy(user.getUserId());
     }
 
     @GetMapping("/{id}")
     @Transactional(readOnly = true)
-    public InvoiceDTO getInvoice(@PathVariable Long id) {
+    public InvoiceDTO getInvoice(@PathVariable("id") Long id) {
         log.info("Fetching invoice {}", id);
         return invoiceService.getInvoiceById(id)
                 .orElseThrow(() -> new RuntimeException("Invoice not found"));
@@ -56,28 +83,28 @@ public class InvoiceController {
 
     @GetMapping("/number/{invoiceNumber}")
     @Transactional(readOnly = true)
-    public InvoiceDTO getInvoiceByNumber(@PathVariable String invoiceNumber) {
+    public InvoiceDTO getInvoiceByNumber(@PathVariable("invoiceNumber") String invoiceNumber) {
         log.info("Fetching invoice by number: {}", invoiceNumber);
         return invoiceService.getInvoiceByNumber(invoiceNumber);
     }
 
     @GetMapping("/quotation/{quotationId}")
     @Transactional(readOnly = true)
-    public List<InvoiceDTO> getInvoicesByQuotation(@PathVariable Long quotationId) {
+    public List<InvoiceDTO> getInvoicesByQuotation(@PathVariable("quotationId") Long quotationId) {
         log.info("Fetching invoices for quotation {}", quotationId);
         return invoiceService.getInvoicesByQuotation(quotationId);
     }
 
     @GetMapping("/customer/{customerId}")
     @Transactional(readOnly = true)
-    public List<InvoiceDTO> getInvoicesByCustomer(@PathVariable Long customerId) {
+    public List<InvoiceDTO> getInvoicesByCustomer(@PathVariable("customerId") Long customerId) {
         log.info("Fetching invoices for customer {}", customerId);
         return invoiceService.getInvoicesByCustomer(customerId);
     }
 
     @GetMapping("/status/{status}")
     @Transactional(readOnly = true)
-    public List<InvoiceDTO> getInvoicesByStatus(@PathVariable String status,
+    public List<InvoiceDTO> getInvoicesByStatus(@PathVariable("status") String status,
                                                 Authentication authentication) {
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
         log.info("Fetching invoices with status {} for company {}", status, user.getCompanyId());
@@ -86,7 +113,7 @@ public class InvoiceController {
 
     @GetMapping("/payment-status/{paymentStatus}")
     @Transactional(readOnly = true)
-    public List<InvoiceDTO> getInvoicesByPaymentStatus(@PathVariable String paymentStatus,
+    public List<InvoiceDTO> getInvoicesByPaymentStatus(@PathVariable("paymentStatus") String paymentStatus,
                                                        Authentication authentication) {
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
         log.info("Fetching invoices with payment status {} for company {}", paymentStatus, user.getCompanyId());
@@ -112,7 +139,7 @@ public class InvoiceController {
     }
 
     @PutMapping("/{id}")
-    public InvoiceDTO updateInvoice(@PathVariable Long id,
+    public InvoiceDTO updateInvoice(@PathVariable("id") Long id,
                                     @RequestBody @Valid InvoiceRequestDTO requestDTO,
                                     Authentication authentication) {
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
@@ -122,7 +149,7 @@ public class InvoiceController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteInvoice(@PathVariable Long id,
+    public void deleteInvoice(@PathVariable("id") Long id,
                               Authentication authentication) {
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
         log.info("User {} deleting invoice {}", user.getUserId(), id);
@@ -130,7 +157,7 @@ public class InvoiceController {
     }
 
     @PutMapping("/{id}/status")
-    public InvoiceDTO changeStatus(@PathVariable Long id,
+    public InvoiceDTO changeStatus(@PathVariable("id") Long id,
                                    @RequestBody Map<String, String> request,
                                    Authentication authentication) {
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
@@ -140,7 +167,7 @@ public class InvoiceController {
     }
 
     @PutMapping("/{id}/mark-as-sent")
-    public InvoiceDTO markAsSent(@PathVariable Long id,
+    public InvoiceDTO markAsSent(@PathVariable("id") Long id,
                                  Authentication authentication) {
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
         log.info("User {} marking invoice {} as sent", user.getUserId(), id);
@@ -148,7 +175,7 @@ public class InvoiceController {
     }
 
     @PutMapping("/{id}/mark-as-paid")
-    public InvoiceDTO markAsPaid(@PathVariable Long id,
+    public InvoiceDTO markAsPaid(@PathVariable("id") Long id,
                                  Authentication authentication) {
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
         log.info("User {} marking invoice {} as paid", user.getUserId(), id);
@@ -157,7 +184,7 @@ public class InvoiceController {
 
     @PostMapping("/{id}/payments")
     @ResponseStatus(HttpStatus.CREATED)
-    public PaymentDTO recordPayment(@PathVariable Long id,
+    public PaymentDTO recordPayment(@PathVariable("id") Long id,
                                     @RequestBody @Valid PaymentDTO paymentDTO,
                                     Authentication authentication) {
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
@@ -167,15 +194,15 @@ public class InvoiceController {
 
     @GetMapping("/{id}/payments")
     @Transactional(readOnly = true)
-    public List<PaymentDTO> getPaymentHistory(@PathVariable Long id) {
+    public List<PaymentDTO> getPaymentHistory(@PathVariable("id") Long id) {
         log.info("Fetching payment history for invoice {}", id);
         return invoiceService.getPaymentHistory(id);
     }
 
     @DeleteMapping("/{invoiceId}/payments/{paymentId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deletePayment(@PathVariable Long invoiceId,
-                              @PathVariable Long paymentId,
+    public void deletePayment(@PathVariable("invoiceId") Long invoiceId,
+                              @PathVariable("paymentId") Long paymentId,
                               Authentication authentication) {
         CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
         log.info("User {} deleting payment {} for invoice {}", user.getUserId(), paymentId, invoiceId);

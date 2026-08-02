@@ -13,11 +13,17 @@ public interface InvoiceService {
     // Invoice CRUD operations
     InvoiceDTO createInvoice(InvoiceRequestDTO requestDTO, Long userId);
     
+    InvoiceDTO createDirectInvoice(InvoiceRequestDTO requestDTO, Long userId);
+    
     Optional<InvoiceDTO> getInvoiceById(Long id);
     
     InvoiceDTO getInvoiceByNumber(String invoiceNumber);
     
+    List<InvoiceDTO> getAllInvoices();
+    
     List<InvoiceDTO> getInvoicesByCompany(Long companyId);
+
+    List<InvoiceDTO> getInvoicesByCreatedBy(Long userId);
     
     List<InvoiceDTO> getInvoicesByCustomer(Long customerId);
     

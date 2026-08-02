@@ -12,11 +12,12 @@ public interface QuotationMapper {
 
     @Mapping(source = "customer.id", target = "customerId")
     @Mapping(source = "customer.customerName", target = "customerName")
+    @Mapping(source = "customer.phone", target = "customerPhone")
     @Mapping(source = "createdBy", target = "createdBy")
     @Mapping(target = "createdByName", ignore = true)
     @Mapping(source = "createdAt", target = "createdAt")
     QuotationDTO toDto(Quotation quotation);
-    
+
     @Mapping(source = "customerId", target = "customer.id")
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "quotationNumber", ignore = true)
@@ -38,5 +39,6 @@ public interface QuotationMapper {
     @Mapping(target = "emailStatus", ignore = true)
     @Mapping(target = "emailErrorMessage", ignore = true)
     @Mapping(target = "lastReminderSentAt", ignore = true)
+    @Mapping(target = "services", ignore = true)
     Quotation toEntity(QuotationRequestDTO requestDTO);
 }

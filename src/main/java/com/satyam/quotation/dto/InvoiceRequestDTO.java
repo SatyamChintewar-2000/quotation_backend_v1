@@ -7,7 +7,9 @@ import java.util.List;
 
 @Data
 public class InvoiceRequestDTO {
-    private Long quotationId;
+    private Long quotationId; // Optional - null for direct invoices
+    private Long customerId; // Required for direct invoices
+    private String customerName; // Optional - for direct invoices
     private LocalDate invoiceDate;
     private LocalDate dueDate;
     private BigDecimal discountPercentage;

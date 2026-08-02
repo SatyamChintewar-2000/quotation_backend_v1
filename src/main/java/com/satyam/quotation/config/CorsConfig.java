@@ -13,11 +13,12 @@ public class CorsConfig implements WebMvcConfigurer {
                 .allowedOrigins(
                         "http://localhost:5173",  // Vite default port
                         "http://localhost:3000",  // Alternative React port
-                        "http://localhost:4173",
+                        "http://localhost:4173",  // Vite preview port
                         "http://localhost:8082",
                         "http://localhost:8081",
                         "http://localhost:8080",
-                        "http://quotation-app-frontend-satyam.s3-website.eu-north-1.amazonaws.com"// Vite preview port
+                        "https://quoteflow.in",   // Production domain
+                        "https://www.quoteflow.in" // Production domain with www
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
                 .allowedHeaders("*")

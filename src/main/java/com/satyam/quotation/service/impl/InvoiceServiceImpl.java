@@ -10,6 +10,8 @@ import com.satyam.quotation.repository.*;
 import com.satyam.quotation.service.InvoiceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +37,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final CompanyRepository companyRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final CacheManager cacheManager;
 
     public InvoiceServiceImpl(InvoiceRepository invoiceRepository,
                              InvoiceItemRepository invoiceItemRepository,
@@ -44,7 +47,8 @@ public class InvoiceServiceImpl implements InvoiceService {
                              CustomerRepository customerRepository,
                              CompanyRepository companyRepository,
                              ProductRepository productRepository,
-                             UserRepository userRepository) {
+                             UserRepository userRepository,
+                             CacheManager cacheManager) {
         this.invoiceRepository = invoiceRepository;
         this.invoiceItemRepository = invoiceItemRepository;
         this.invoicePaymentRepository = invoicePaymentRepository;
@@ -54,6 +58,17 @@ public class InvoiceServiceImpl implements InvoiceService {
         this.companyRepository = companyRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
+        this.cacheManager = cacheManager;
+    }
+
+    // Evict only the specific company's invoice cache — other companies unaffected
+    private void evictInvoiceCache(Long companyId, Long createdBy) {
+        var cache = cacheManager.getCache("invoices");
+        if (cache != null) {
+            if (companyId != null) cache.evict("company:" + companyId);
+            if (createdBy  != null) cache.evict("user:"    + createdBy);
+            cache.evict("all");
+        }
     }
 
     @Override
@@ -117,6 +132,92 @@ public class InvoiceServiceImpl implements InvoiceService {
 
         log.info("Created invoice: {} from quotation: {}", invoiceNumber, quotation.getQuotationNumber());
 
+        evictInvoiceCache(quotation.getCompany().getId(), userId);
+        return convertToDTO(savedInvoice);
+    }
+
+    @Override
+    @Transactional
+    public InvoiceDTO createDirectInvoice(InvoiceRequestDTO requestDTO, Long userId) {
+        log.info("Creating direct invoice for customer: {}", requestDTO.getCustomerId());
+
+        // Get customer
+        Customer customer = customerRepository.findById(requestDTO.getCustomerId())
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+
+        // Get user to determine company
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        
+        Company company = user.getCompany();
+        if (company == null) {
+            throw new IllegalStateException("User must be associated with a company");
+        }
+
+        // Create invoice
+        Invoice invoice = new Invoice();
+        invoice.setQuotation(null); // No quotation for direct invoices
+        invoice.setCustomer(customer);
+        invoice.setCompany(company);
+        invoice.setInvoiceDate(requestDTO.getInvoiceDate() != null ? requestDTO.getInvoiceDate() : LocalDate.now());
+        invoice.setDueDate(requestDTO.getDueDate() != null ? requestDTO.getDueDate() : LocalDate.now().plusDays(30));
+        invoice.setDiscountPercentage(requestDTO.getDiscountPercentage() != null ? requestDTO.getDiscountPercentage() : BigDecimal.ZERO);
+        invoice.setNotes(requestDTO.getNotes());
+        invoice.setTermsAndConditions(requestDTO.getTermsAndConditions());
+        invoice.setStatus("DRAFT");
+        invoice.setPaymentStatus("PENDING");
+        invoice.setCreatedBy(userId);
+        invoice.setCreatedAt(LocalDateTime.now());
+        invoice.setActive(true);
+
+        // Generate invoice number
+        String invoiceNumber = generateInvoiceNumber(company.getId());
+        invoice.setInvoiceNumber(invoiceNumber);
+
+        // Save invoice first
+        Invoice savedInvoice = invoiceRepository.save(invoice);
+
+        // Add items from request
+        if (requestDTO.getItems() != null && !requestDTO.getItems().isEmpty()) {
+            for (InvoiceItemDTO itemDTO : requestDTO.getItems()) {
+                InvoiceItem invoiceItem = new InvoiceItem();
+                invoiceItem.setInvoice(savedInvoice);
+                
+                // Get product if productId is provided
+                if (itemDTO.getProductId() != null) {
+                    Product product = productRepository.findById(itemDTO.getProductId())
+                            .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + itemDTO.getProductId()));
+                    invoiceItem.setProduct(product);
+                    invoiceItem.setProductName(product.getProductName());
+                    invoiceItem.setProductDescription(product.getDescription());
+                }
+                
+                invoiceItem.setQuantity(itemDTO.getQuantity());
+                invoiceItem.setUnitPrice(itemDTO.getUnitPrice());
+                invoiceItem.setDiscountPercentage(itemDTO.getDiscountPercentage() != null ? itemDTO.getDiscountPercentage() : BigDecimal.ZERO);
+                invoiceItem.setTaxPercentage(itemDTO.getTaxPercentage() != null ? itemDTO.getTaxPercentage() : BigDecimal.ZERO);
+                
+                // Calculate amounts
+                BigDecimal itemTotal = itemDTO.getUnitPrice().multiply(BigDecimal.valueOf(itemDTO.getQuantity()));
+                BigDecimal discountAmount = itemTotal.multiply(invoiceItem.getDiscountPercentage()).divide(BigDecimal.valueOf(100));
+                BigDecimal afterDiscount = itemTotal.subtract(discountAmount);
+                BigDecimal taxAmount = afterDiscount.multiply(invoiceItem.getTaxPercentage()).divide(BigDecimal.valueOf(100));
+                BigDecimal total = afterDiscount.add(taxAmount);
+                
+                invoiceItem.setItemTotal(itemTotal);
+                invoiceItem.setTaxAmount(taxAmount);
+                invoiceItem.setTotal(total);
+                
+                invoiceItemRepository.save(invoiceItem);
+            }
+        }
+
+        // Calculate totals
+        calculateInvoiceTotals(savedInvoice);
+
+        log.info("Created direct invoice: {} for customer: {}", invoiceNumber, customer.getCustomerName());
+
+        evictInvoiceCache(company.getId(), userId);
         return convertToDTO(savedInvoice);
     }
 
@@ -139,8 +240,27 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "invoices", key = "'all'")
+    public List<InvoiceDTO> getAllInvoices() {
+        return invoiceRepository.findAllActive().stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "invoices", key = "'company:' + #companyId")
     public List<InvoiceDTO> getInvoicesByCompany(Long companyId) {
         return invoiceRepository.findActiveInvoicesByCompany(companyId).stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "invoices", key = "'user:' + #userId")
+    public List<InvoiceDTO> getInvoicesByCreatedBy(Long userId) {
+        return invoiceRepository.findByCreatedByAndActiveTrue(userId).stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
@@ -234,6 +354,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         Invoice saved = invoiceRepository.save(invoice);
 
         log.info("Updated invoice: {}", saved.getInvoiceNumber());
+        Long companyId = saved.getCompany() != null ? saved.getCompany().getId() : null;
+        evictInvoiceCache(companyId, saved.getCreatedBy());
         return convertToDTO(saved);
     }
 
@@ -243,11 +365,15 @@ public class InvoiceServiceImpl implements InvoiceService {
         Invoice invoice = invoiceRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found"));
 
+        Long companyId = invoice.getCompany() != null ? invoice.getCompany().getId() : null;
+        Long createdBy = invoice.getCreatedBy();
+
         invoice.setActive(false);
         invoice.setDeletedAt(LocalDateTime.now());
         invoice.setDeletedBy(userId);
-
         invoiceRepository.save(invoice);
+
+        evictInvoiceCache(companyId, createdBy);
         log.info("Deleted invoice: {}", invoice.getInvoiceNumber());
     }
 
@@ -258,9 +384,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .filter(Invoice::getActive)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found"));
 
-        // Validate status transition
         validateStatusTransition(invoice.getStatus(), newStatus);
-
         invoice.setStatus(newStatus);
         invoice.setUpdatedAt(LocalDateTime.now());
         invoice.setUpdatedBy(userId);
@@ -268,6 +392,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         Invoice saved = invoiceRepository.save(invoice);
         log.info("Changed invoice {} status to {}", saved.getInvoiceNumber(), newStatus);
 
+        Long companyId = saved.getCompany() != null ? saved.getCompany().getId() : null;
+        evictInvoiceCache(companyId, saved.getCreatedBy());
         return convertToDTO(saved);
     }
 
@@ -286,6 +412,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         Invoice saved = invoiceRepository.save(invoice);
         log.info("Marked invoice {} as paid", saved.getInvoiceNumber());
 
+        Long companyId = saved.getCompany() != null ? saved.getCompany().getId() : null;
+        evictInvoiceCache(companyId, saved.getCreatedBy());
         return convertToDTO(saved);
     }
 
@@ -305,6 +433,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         Invoice saved = invoiceRepository.save(invoice);
         log.info("Marked invoice {} as sent", saved.getInvoiceNumber());
 
+        Long companyId = saved.getCompany() != null ? saved.getCompany().getId() : null;
+        evictInvoiceCache(companyId, saved.getCreatedBy());
         return convertToDTO(saved);
     }
 
@@ -380,7 +510,11 @@ public class InvoiceServiceImpl implements InvoiceService {
         int currentYear = Year.now().getValue();
         
         InvoiceSequence sequence = invoiceSequenceRepository.findByCompanyIdAndYear(companyId, currentYear)
-                .orElse(new InvoiceSequence());
+                .orElseGet(() -> {
+                    InvoiceSequence s = new InvoiceSequence();
+                    s.setLastSequence(0);
+                    return s;
+                });
         
         sequence.setCompany(companyRepository.findById(companyId)
                 .orElseThrow(() -> new ResourceNotFoundException("Company not found")));
@@ -468,7 +602,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         InvoiceDTO dto = new InvoiceDTO();
         dto.setId(invoice.getId());
         dto.setInvoiceNumber(invoice.getInvoiceNumber());
-        dto.setQuotationId(invoice.getQuotation().getId());
+        // Handle null quotation for direct invoices
+        dto.setQuotationId(invoice.getQuotation() != null ? invoice.getQuotation().getId() : null);
         dto.setCustomerId(invoice.getCustomer().getId());
         dto.setCustomerName(invoice.getCustomer().getCustomerName());
         dto.setCompanyId(invoice.getCompany().getId());

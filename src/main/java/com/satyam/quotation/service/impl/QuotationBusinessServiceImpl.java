@@ -153,8 +153,21 @@ public class QuotationBusinessServiceImpl implements QuotationBusinessService {
         quotation.setTotalDiscount(totalDiscount);
         quotation.setTotalGst(totalTax);
 
-        // Grand total = subtotal - total discount + total tax
-        BigDecimal grandTotal = subtotal.subtract(totalDiscount).add(totalTax);
+        // Add service charges to grand total
+        BigDecimal serviceTotal = BigDecimal.ZERO;
+        if (quotation.getServices() != null) {
+            for (QuotationService service : quotation.getServices()) {
+                if (service.getServicePrice() != null) {
+                    BigDecimal price = service.getServicePrice();
+                    BigDecimal tax = service.getServiceTax() != null ? service.getServiceTax() : BigDecimal.ZERO;
+                    BigDecimal serviceTaxAmount = price.multiply(tax).divide(BigDecimal.valueOf(100));
+                    serviceTotal = serviceTotal.add(price).add(serviceTaxAmount);
+                }
+            }
+        }
+
+        // Grand total = subtotal - total discount + total tax + service charges
+        BigDecimal grandTotal = subtotal.subtract(totalDiscount).add(totalTax).add(serviceTotal);
         quotation.setTotalAmount(grandTotal);
 
         log.debug("Calculated totals for quotation {}: subtotal={}, discount={}, tax={}, total={}",
@@ -173,6 +186,7 @@ public class QuotationBusinessServiceImpl implements QuotationBusinessService {
         // Capture product details at time of quoting
         item.setProductNameSnapshot(product.getProductName());
         item.setProductDescriptionSnapshot(product.getDescription());
+        item.setImagePathSnapshot(product.getImagePath());  // Capture image snapshot
         item.setUnitSnapshot(product.getUnit());
 
         // Set legacy fields for backward compatibility
@@ -184,8 +198,9 @@ public class QuotationBusinessServiceImpl implements QuotationBusinessService {
             item.setUnitPrice(product.getPrice());
         }
 
-        // Set tax percentage from product if not already set
-        if (item.getTaxPercentage() == null || item.getTaxPercentage().compareTo(BigDecimal.ZERO) == 0) {
+        // Set tax percentage from product ONLY if the item has no tax set (null means not provided)
+        // If user explicitly set 0%, respect that — do NOT override with product default
+        if (item.getTaxPercentage() == null) {
             item.setTaxPercentage(product.getTaxPercentage());
         }
 
@@ -223,8 +238,11 @@ public class QuotationBusinessServiceImpl implements QuotationBusinessService {
             QuotationItem duplicateItem = QuotationItem.builder()
                     .quotation(duplicate)
                     .product(originalItem.getProduct())
+                    .productName(originalItem.getProductName() != null ? originalItem.getProductName() : originalItem.getProductNameSnapshot())
+                    .productDescription(originalItem.getProductDescription() != null ? originalItem.getProductDescription() : originalItem.getProductDescriptionSnapshot())
                     .productNameSnapshot(originalItem.getProductNameSnapshot())
                     .productDescriptionSnapshot(originalItem.getProductDescriptionSnapshot())
+                    .imagePathSnapshot(originalItem.getImagePathSnapshot())
                     .unitSnapshot(originalItem.getUnitSnapshot())
                     .quantity(originalItem.getQuantity())
                     .unitPrice(originalItem.getUnitPrice())
@@ -257,13 +275,13 @@ public class QuotationBusinessServiceImpl implements QuotationBusinessService {
             throw new IllegalStateException("Quotation must have at least one item");
         }
 
-        // Check if expiry date is set
-        if (quotation.getExpiryDate() == null) {
-            throw new IllegalStateException("Expiry date is required");
-        }
+        // Check if expiry date is set (optional now)
+        // if (quotation.getExpiryDate() == null) {
+        //     throw new IllegalStateException("Expiry date is required");
+        // }
 
         // Check if customer is set
-        if (quotation.getCustomer() == null) {
+        if (quotation.getCustomer() == null || quotation.getCustomer().getId() == null) {
             throw new IllegalStateException("Customer is required");
         }
 
@@ -285,19 +303,13 @@ public class QuotationBusinessServiceImpl implements QuotationBusinessService {
 
     @Override
     public List<Quotation> getQuotationsByStatus(String status, Long companyId) {
-        return quotationRepository.findAll().stream()
-                .filter(Quotation::getActive)
-                .filter(q -> status.equals(q.getStatus()))
-                .filter(q -> companyId == null || companyId.equals(q.getCompany().getId()))
-                .toList();
+        // Use DB query instead of loading all quotations + Java filter
+        return quotationRepository.findByStatusAndCompany(status, companyId);
     }
 
     @Override
     public List<Quotation> getExpiredQuotations(Long companyId) {
-        return quotationRepository.findAll().stream()
-                .filter(Quotation::getActive)
-                .filter(this::isExpired)
-                .filter(q -> companyId == null || companyId.equals(q.getCompany().getId()))
-                .toList();
+        // Use DB date comparison instead of loading all quotations + Java filter
+        return quotationRepository.findExpiredQuotations(companyId);
     }
 }

@@ -26,9 +26,19 @@ public class Product {
     @Column(name = "product_name")
     private String productName;
 
+    @Column(name = "product_code")
+    private String productCode;
+
+    private String brand;
+
+    private String category;
+
     private String description;
 
     private BigDecimal price;
+
+    @Column(name = "purchase_price")
+    private BigDecimal purchasePrice = BigDecimal.ZERO;
 
     @Column(name = "tax_percentage")
     private BigDecimal taxPercentage = BigDecimal.ZERO;

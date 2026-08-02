@@ -23,7 +23,7 @@ public class Invoice {
     private String invoiceNumber;
     
     @ManyToOne
-    @JoinColumn(name = "quotation_id", nullable = false)
+    @JoinColumn(name = "quotation_id", nullable = true)
     private Quotation quotation;
     
     @ManyToOne

@@ -3,6 +3,7 @@ package com.satyam.quotation.model;
 import java.math.BigDecimal;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -14,7 +15,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+@JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
 public class QuotationItem {
 
     @Id
@@ -25,9 +26,26 @@ public class QuotationItem {
     @JoinColumn(name = "quotation_id")
     private Quotation quotation;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "product_id")
     private Product product;
+
+    @Transient
+    @JsonProperty("productId")
+    public Long getProductId() {
+        return product != null ? product.getId() : null;
+    }
+
+    @JsonProperty("productId")
+    public void setProductId(Long productId) {
+        if (productId == null) {
+            return;
+        }
+        if (this.product == null) {
+            this.product = new Product();
+        }
+        this.product.setId(productId);
+    }
 
     // Product snapshot fields (captured at time of quoting)
     @Column(name = "product_name_snapshot")
@@ -35,6 +53,9 @@ public class QuotationItem {
 
     @Column(name = "product_description_snapshot", columnDefinition = "TEXT")
     private String productDescriptionSnapshot;
+
+    @Column(name = "image_path_snapshot", columnDefinition = "TEXT")
+    private String imagePathSnapshot;
 
     @Column(name = "unit_snapshot", length = 50)
     private String unitSnapshot;

@@ -13,6 +13,8 @@ public interface UserService {
 
     Optional<User> getUserByEmail(String email);
 
+    List<User> getAllUsers();
+
     List<User> getUsersByCompany(Long companyId);
 
     List<User> getStaffByCompany(Long companyId);

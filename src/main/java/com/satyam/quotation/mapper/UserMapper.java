@@ -18,7 +18,7 @@ public interface UserMapper {
     @Mapping(source = "company.companyName", target = "companyName")
     @Mapping(source = "createdBy", target = "createdBy")
     UserDTO toDto(User user);
-    
+
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "role", ignore = true)
     @Mapping(target = "company", ignore = true)
@@ -30,8 +30,12 @@ public interface UserMapper {
     @Mapping(target = "deletedBy", ignore = true)
     @Mapping(target = "password", ignore = true)
     @Mapping(target = "avatar", ignore = true)
+    @Mapping(target = "resetToken", ignore = true)
+    @Mapping(target = "resetTokenExpiry", ignore = true)
+    @Mapping(target = "loginOtp", ignore = true)
+    @Mapping(target = "loginOtpExpiry", ignore = true)
     User toEntity(UserRequestDTO dto);
-    
+
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "role", ignore = true)
     @Mapping(target = "company", ignore = true)
@@ -43,5 +47,9 @@ public interface UserMapper {
     @Mapping(target = "deletedBy", ignore = true)
     @Mapping(target = "password", ignore = true)
     @Mapping(target = "avatar", ignore = true)
+    @Mapping(target = "resetToken", ignore = true)
+    @Mapping(target = "resetTokenExpiry", ignore = true)
+    @Mapping(target = "loginOtp", ignore = true)
+    @Mapping(target = "loginOtpExpiry", ignore = true)
     void updateEntity(UserRequestDTO dto, @MappingTarget User user);
 }
