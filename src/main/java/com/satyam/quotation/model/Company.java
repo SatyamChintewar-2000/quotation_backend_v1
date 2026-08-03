@@ -118,5 +118,26 @@ public class Company {
     // ── Subscription expiry ───────────────────────────────────────────────────
     @Column(name = "subscription_expires_at")
     private java.time.LocalDate subscriptionExpiresAt;
+
+    // ── CBM / Weight / USD export columns (V28) ───────────────────────────────
+    @Column(name = "show_weight_column")
+    @Builder.Default
+    private Boolean showWeightColumn = false;
+
+    @Column(name = "show_cbm_column")
+    @Builder.Default
+    private Boolean showCbmColumn = false;
+
+    @Column(name = "show_usd_column")
+    @Builder.Default
+    private Boolean showUsdColumn = false;
+
+    @Column(name = "rate_per_cbm", precision = 10, scale = 2)
+    @Builder.Default
+    private java.math.BigDecimal ratePerCbm = java.math.BigDecimal.ZERO;
+
+    @Column(name = "usd_exchange_rate", precision = 10, scale = 2)
+    @Builder.Default
+    private java.math.BigDecimal usdExchangeRate = new java.math.BigDecimal("83");
 }
 

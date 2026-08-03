@@ -189,6 +189,10 @@ public class QuotationBusinessServiceImpl implements QuotationBusinessService {
         item.setImagePathSnapshot(product.getImagePath());  // Capture image snapshot
         item.setUnitSnapshot(product.getUnit());
 
+        // Capture weight & CBM snapshot (null-safe — these are optional fields)
+        item.setNetWeightSnapshot(product.getNetWeight());
+        item.setCbmSnapshot(product.getCbm());
+
         // Set legacy fields for backward compatibility
         item.setProductName(product.getProductName());
         item.setProductDescription(product.getDescription());
@@ -204,8 +208,9 @@ public class QuotationBusinessServiceImpl implements QuotationBusinessService {
             item.setTaxPercentage(product.getTaxPercentage());
         }
 
-        log.debug("Captured product snapshot for item: product={}, price={}, tax={}",
-                product.getProductName(), item.getUnitPrice(), item.getTaxPercentage());
+        log.debug("Captured product snapshot for item: product={}, price={}, tax={}, netWeight={}, cbm={}",
+                product.getProductName(), item.getUnitPrice(), item.getTaxPercentage(),
+                product.getNetWeight(), product.getCbm());
     }
 
     @Override

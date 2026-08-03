@@ -60,6 +60,13 @@ public class QuotationItem {
     @Column(name = "unit_snapshot", length = 50)
     private String unitSnapshot;
 
+    // Weight & CBM snapshots — captured at time of quoting (immutable audit trail)
+    @Column(name = "net_weight_snapshot", precision = 10, scale = 3)
+    private BigDecimal netWeightSnapshot;
+
+    @Column(name = "cbm_snapshot", precision = 10, scale = 4)
+    private BigDecimal cbmSnapshot;
+
     // Legacy fields (kept for backward compatibility)
     @Column(name = "product_name")
     private String productName;

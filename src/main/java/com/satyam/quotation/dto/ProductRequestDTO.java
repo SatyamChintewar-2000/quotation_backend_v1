@@ -45,4 +45,8 @@ public class ProductRequestDTO {
     private LocalDate expiryDate;
     
     private String imagePath;
+
+    // Optional: weight and volume per unit (for export/logistics quotations)
+    private java.math.BigDecimal netWeight;
+    private java.math.BigDecimal cbm;
 }

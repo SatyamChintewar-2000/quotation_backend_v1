@@ -32,4 +32,11 @@ public class CompanyRequestDTO {
 
     // Subscription expiry (Super Admin sets this)
     private java.time.LocalDate subscriptionExpiresAt;
+
+    // CBM / Weight / USD export column toggles (V28)
+    private Boolean showWeightColumn;
+    private Boolean showCbmColumn;
+    private Boolean showUsdColumn;
+    private java.math.BigDecimal ratePerCbm;
+    private java.math.BigDecimal usdExchangeRate;
 }

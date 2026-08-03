@@ -20,5 +20,9 @@ public class QuotationItemDTO {
     private BigDecimal taxPercentage;
     private BigDecimal taxAmount;
     private BigDecimal itemTotal;
+
+    // Weight & CBM snapshots — captured at time of quoting
+    private BigDecimal netWeightSnapshot;
+    private BigDecimal cbmSnapshot;
 }
 
