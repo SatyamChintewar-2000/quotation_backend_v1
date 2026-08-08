@@ -95,6 +95,13 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.setDiscountPercentage(requestDTO.getDiscountPercentage() != null ? requestDTO.getDiscountPercentage() : BigDecimal.ZERO);
         invoice.setNotes(requestDTO.getNotes());
         invoice.setTermsAndConditions(requestDTO.getTermsAndConditions());
+        invoice.setDocumentType(requestDTO.getDocumentType() != null ? requestDTO.getDocumentType() : "INVOICE");
+        invoice.setGstType(requestDTO.getGstType() != null ? requestDTO.getGstType() : "SGST_CGST");
+        invoice.setCustomerAddress(quotation.getCustomer() != null ? quotation.getCustomer().getAddress() : null);
+        invoice.setShippingAddress(requestDTO.getShippingAddress() != null ? requestDTO.getShippingAddress()
+                : (quotation.getCustomer() != null ? quotation.getCustomer().getShippingAddress() : null));
+        invoice.setDeliveryDate(requestDTO.getDeliveryDate());
+        invoice.setExpiryDate(requestDTO.getExpiryDate());
         invoice.setStatus("DRAFT");
         invoice.setPaymentStatus("PENDING");
         invoice.setCreatedBy(userId);
@@ -116,6 +123,10 @@ public class InvoiceServiceImpl implements InvoiceService {
                 invoiceItem.setProduct(qItem.getProduct());
                 invoiceItem.setProductName(qItem.getProductName() != null ? qItem.getProductName() : qItem.getProductNameSnapshot());
                 invoiceItem.setProductDescription(qItem.getProductDescription() != null ? qItem.getProductDescription() : qItem.getProductDescriptionSnapshot());
+                // Carry hsnCode from the product snapshot if available
+                if (qItem.getProduct() != null) {
+                    invoiceItem.setHsnCode(qItem.getProduct().getHsnCode());
+                }
                 invoiceItem.setQuantity(qItem.getQuantity());
                 invoiceItem.setUnitPrice(qItem.getUnitPrice());
                 invoiceItem.setDiscountPercentage(qItem.getDiscountPercentage());
@@ -164,6 +175,13 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.setDiscountPercentage(requestDTO.getDiscountPercentage() != null ? requestDTO.getDiscountPercentage() : BigDecimal.ZERO);
         invoice.setNotes(requestDTO.getNotes());
         invoice.setTermsAndConditions(requestDTO.getTermsAndConditions());
+        invoice.setDocumentType(requestDTO.getDocumentType() != null ? requestDTO.getDocumentType() : "INVOICE");
+        invoice.setGstType(requestDTO.getGstType() != null ? requestDTO.getGstType() : "SGST_CGST");
+        invoice.setCustomerAddress(customer.getAddress());
+        invoice.setShippingAddress(requestDTO.getShippingAddress() != null ? requestDTO.getShippingAddress()
+                : customer.getShippingAddress());
+        invoice.setDeliveryDate(requestDTO.getDeliveryDate());
+        invoice.setExpiryDate(requestDTO.getExpiryDate());
         invoice.setStatus("DRAFT");
         invoice.setPaymentStatus("PENDING");
         invoice.setCreatedBy(userId);
@@ -190,6 +208,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                     invoiceItem.setProduct(product);
                     invoiceItem.setProductName(product.getProductName());
                     invoiceItem.setProductDescription(product.getDescription());
+                    invoiceItem.setHsnCode(product.getHsnCode());
                 }
                 
                 invoiceItem.setQuantity(itemDTO.getQuantity());
@@ -326,6 +345,21 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
         if (requestDTO.getTermsAndConditions() != null) {
             invoice.setTermsAndConditions(requestDTO.getTermsAndConditions());
+        }
+        if (requestDTO.getDocumentType() != null) {
+            invoice.setDocumentType(requestDTO.getDocumentType());
+        }
+        if (requestDTO.getGstType() != null) {
+            invoice.setGstType(requestDTO.getGstType());
+        }
+        if (requestDTO.getShippingAddress() != null) {
+            invoice.setShippingAddress(requestDTO.getShippingAddress());
+        }
+        if (requestDTO.getDeliveryDate() != null) {
+            invoice.setDeliveryDate(requestDTO.getDeliveryDate());
+        }
+        if (requestDTO.getExpiryDate() != null) {
+            invoice.setExpiryDate(requestDTO.getExpiryDate());
         }
 
         // Update items if provided
@@ -619,6 +653,12 @@ public class InvoiceServiceImpl implements InvoiceService {
         dto.setPaymentStatus(invoice.getPaymentStatus());
         dto.setNotes(invoice.getNotes());
         dto.setTermsAndConditions(invoice.getTermsAndConditions());
+        dto.setDocumentType(invoice.getDocumentType() != null ? invoice.getDocumentType() : "INVOICE");
+        dto.setGstType(invoice.getGstType() != null ? invoice.getGstType() : "SGST_CGST");
+        dto.setCustomerAddress(invoice.getCustomerAddress());
+        dto.setShippingAddress(invoice.getShippingAddress());
+        dto.setDeliveryDate(invoice.getDeliveryDate());
+        dto.setExpiryDate(invoice.getExpiryDate());
         dto.setEmailSent(invoice.getEmailSent());
         dto.setEmailSentAt(invoice.getEmailSentAt());
         dto.setCreatedBy(invoice.getCreatedBy());
@@ -651,6 +691,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         dto.setProductId(item.getProduct().getId());
         dto.setProductName(item.getProductName());
         dto.setProductDescription(item.getProductDescription());
+        dto.setHsnCode(item.getHsnCode());
         dto.setQuantity(item.getQuantity());
         dto.setUnitPrice(item.getUnitPrice());
         dto.setDiscountPercentage(item.getDiscountPercentage());

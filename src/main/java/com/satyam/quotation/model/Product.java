@@ -55,6 +55,9 @@ public class Product {
     @Column(name = "tax_type")
     private String taxType = "GST";
 
+    @Column(name = "hsn_code", length = 20)
+    private String hsnCode;
+
     @Column(name = "expiry_date")
     private LocalDate expiryDate;
 

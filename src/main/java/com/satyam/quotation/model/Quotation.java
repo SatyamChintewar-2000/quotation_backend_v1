@@ -137,4 +137,12 @@ public class Quotation {
     @Column(name = "hide_service_charges_on_pdf")
     @Builder.Default
     private Boolean hideServiceChargesOnPdf = false;
+
+    /** Snapshot of customer billing address at time of quotation */
+    @Column(name = "customer_address", columnDefinition = "TEXT")
+    private String customerAddress;
+
+    /** Snapshot of shipping address at time of quotation */
+    @Column(name = "shipping_address", columnDefinition = "TEXT")
+    private String shippingAddress;
 }

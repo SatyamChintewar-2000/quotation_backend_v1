@@ -26,6 +26,12 @@ public class InvoiceDTO {
     private String paymentStatus;
     private String notes;
     private String termsAndConditions;
+    private String documentType;
+    private String gstType;
+    private String customerAddress;
+    private String shippingAddress;
+    private LocalDate deliveryDate;
+    private LocalDate expiryDate;
     private Boolean emailSent;
     private LocalDateTime emailSentAt;
     private Long createdBy;

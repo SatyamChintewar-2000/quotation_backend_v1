@@ -10,6 +10,7 @@ public class InvoiceItemDTO {
     private Long productId;
     private String productName;
     private String productDescription;
+    private String hsnCode;
     private Integer quantity;
     private BigDecimal unitPrice;
     private BigDecimal discountPercentage;

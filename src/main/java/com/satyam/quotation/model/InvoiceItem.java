@@ -34,6 +34,9 @@ public class InvoiceItem {
     
     @Column(columnDefinition = "TEXT")
     private String productDescription;
+
+    @Column(name = "hsn_code", length = 20)
+    private String hsnCode;
     
     @Column(nullable = false)
     private Integer quantity;

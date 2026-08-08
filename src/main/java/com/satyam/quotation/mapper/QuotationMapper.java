@@ -16,6 +16,8 @@ public interface QuotationMapper {
     @Mapping(source = "createdBy", target = "createdBy")
     @Mapping(target = "createdByName", ignore = true)
     @Mapping(source = "createdAt", target = "createdAt")
+    @Mapping(source = "customerAddress", target = "customerAddress")
+    @Mapping(source = "shippingAddress", target = "shippingAddress")
     QuotationDTO toDto(Quotation quotation);
 
     @Mapping(source = "customerId", target = "customer.id")

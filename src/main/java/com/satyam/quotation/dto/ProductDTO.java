@@ -21,6 +21,7 @@ public class ProductDTO {
     private BigDecimal discountPercentage;
     private String taxType;
     private BigDecimal taxPercentage;
+    private String hsnCode;
     private LocalDate expiryDate;
     private String imagePath;
     private Long companyId;

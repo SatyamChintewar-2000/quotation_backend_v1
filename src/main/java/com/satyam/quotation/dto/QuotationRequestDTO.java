@@ -40,4 +40,7 @@ public class QuotationRequestDTO {
 
     // Feature 2: Toggle service charges visibility on PDF
     private Boolean hideServiceChargesOnPdf = false;
+
+    private String customerAddress;
+    private String shippingAddress;
 }
