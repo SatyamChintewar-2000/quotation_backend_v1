@@ -27,6 +27,9 @@ public class Customer {
     private String phone;
     private String address;
 
+    @Column(name = "shipping_address", columnDefinition = "TEXT")
+    private String shippingAddress;
+
     @Column(name = "gst_number")
     private String gstNumber;
 
