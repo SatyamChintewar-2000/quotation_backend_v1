@@ -11,6 +11,7 @@ public class ProductDTO {
     private Long id;
     private String productName;
     private String productCode;
+    private String hsnSacCode;
     private String brand;
     private String category;
     private String description;
@@ -30,4 +31,8 @@ public class ProductDTO {
     private String createdByName;
     private LocalDateTime createdAt;
     private Boolean active;
+
+    // Optional: weight and volume per unit (for export/logistics quotations)
+    private java.math.BigDecimal netWeight;
+    private java.math.BigDecimal cbm;
 }

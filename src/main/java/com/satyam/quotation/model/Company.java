@@ -118,5 +118,43 @@ public class Company {
     // ── Subscription expiry ───────────────────────────────────────────────────
     @Column(name = "subscription_expires_at")
     private java.time.LocalDate subscriptionExpiresAt;
+
+    // ── CBM / Weight / USD export columns (V28) — kept for backward compat ───
+    @Column(name = "show_weight_column")
+    @Builder.Default
+    private Boolean showWeightColumn = false;
+
+    @Column(name = "show_cbm_column")
+    @Builder.Default
+    private Boolean showCbmColumn = false;
+
+    @Column(name = "show_usd_column")
+    @Builder.Default
+    private Boolean showUsdColumn = false;
+
+    @Column(name = "rate_per_cbm", precision = 10, scale = 2)
+    @Builder.Default
+    private java.math.BigDecimal ratePerCbm = java.math.BigDecimal.ZERO;
+
+    @Column(name = "usd_exchange_rate", precision = 10, scale = 2)
+    @Builder.Default
+    private java.math.BigDecimal usdExchangeRate = new java.math.BigDecimal("83");
+
+    // ── Advanced Options (CBM) — V30 ─────────────────────────────────────────
+    @Column(name = "cbm_advanced_mode")
+    @Builder.Default
+    private Boolean cbmAdvancedMode = false;
+
+    @Column(name = "shipping_cost_usd", precision = 10, scale = 2)
+    @Builder.Default
+    private java.math.BigDecimal shippingCostUsd = java.math.BigDecimal.ZERO;
+
+    @Column(name = "clearance_per_cbm", precision = 10, scale = 2)
+    @Builder.Default
+    private java.math.BigDecimal clearancePerCbm = new java.math.BigDecimal("1667");
+
+    @Column(name = "installation_cost", precision = 12, scale = 2)
+    @Builder.Default
+    private java.math.BigDecimal installationCost = java.math.BigDecimal.ZERO;
 }
 

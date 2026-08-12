@@ -60,6 +60,13 @@ public class QuotationItem {
     @Column(name = "unit_snapshot", length = 50)
     private String unitSnapshot;
 
+    // Weight & CBM snapshots — captured at time of quoting (immutable audit trail)
+    @Column(name = "net_weight_snapshot", precision = 10, scale = 3)
+    private BigDecimal netWeightSnapshot;
+
+    @Column(name = "cbm_snapshot", precision = 10, scale = 4)
+    private BigDecimal cbmSnapshot;
+
     // Legacy fields (kept for backward compatibility)
     @Column(name = "product_name")
     private String productName;
@@ -75,6 +82,14 @@ public class QuotationItem {
     @Column(name = "discount_percentage", precision = 5, scale = 2)
     @Builder.Default
     private BigDecimal discountPercentage = BigDecimal.ZERO;
+
+    /**
+     * Flat discount amount entered by the user (stored as-is for display in PDF).
+     * When present (> 0), the frontend converts it to discountPercentage for all
+     * backend calculations — this field is purely for display purposes.
+     */
+    @Column(name = "discount_amount", precision = 15, scale = 2)
+    private BigDecimal discountAmount;
 
     // Legacy field
     @Column(name = "item_discount_percentage", precision = 5, scale = 2)

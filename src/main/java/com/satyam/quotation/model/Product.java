@@ -29,6 +29,9 @@ public class Product {
     @Column(name = "product_code")
     private String productCode;
 
+    @Column(name = "hsn_sac_code", length = 20)
+    private String hsnSacCode;
+
     private String brand;
 
     private String category;
@@ -63,6 +66,13 @@ public class Product {
 
     @Column(name = "image_path")
     private String imagePath;
+
+    // Optional fields for manufacturers and exporters
+    @Column(name = "net_weight", precision = 10, scale = 3)
+    private BigDecimal netWeight;   // net weight in kg per unit
+
+    @Column(name = "cbm", precision = 10, scale = 4)
+    private BigDecimal cbm;         // volume in cubic metres per unit
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "company_id")

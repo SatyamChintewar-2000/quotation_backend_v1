@@ -129,6 +129,18 @@ public class QuotationServiceImpl implements QuotationService {
         quotation.setCreatedAt(LocalDateTime.now());
         quotation.setActive(true);
 
+        // ── Snapshot exchange rate and CBM rate from company settings ─────────
+        // Frozen here so old quotations always show the rates in effect at creation.
+        if (quotation.getCompany() != null) {
+            com.satyam.quotation.model.Company co = quotation.getCompany();
+            if (co.getUsdExchangeRate() != null && quotation.getUsdExchangeRateSnapshot() == null) {
+                quotation.setUsdExchangeRateSnapshot(co.getUsdExchangeRate());
+            }
+            if (co.getRatePerCbm() != null && quotation.getRatePerCbmSnapshot() == null) {
+                quotation.setRatePerCbmSnapshot(co.getRatePerCbm());
+            }
+        }
+
         Quotation saved = quotationRepository.save(quotation);
         log.info("Created quotation: {} with {} items, {} services",
                 saved.getQuotationNumber(),
