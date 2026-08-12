@@ -102,8 +102,12 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
         product.setProductName(updatedProduct.getProductName());
+        product.setProductCode(updatedProduct.getProductCode());
+        product.setBrand(updatedProduct.getBrand());
+        product.setCategory(updatedProduct.getCategory());
         product.setDescription(updatedProduct.getDescription());
         product.setPrice(updatedProduct.getPrice());
+        product.setPurchasePrice(updatedProduct.getPurchasePrice());
         product.setUnit(updatedProduct.getUnit());
         product.setQuantity(updatedProduct.getQuantity());
         product.setDiscountPercentage(updatedProduct.getDiscountPercentage());
@@ -111,6 +115,10 @@ public class ProductServiceImpl implements ProductService {
         product.setTaxPercentage(updatedProduct.getTaxPercentage());
         product.setExpiryDate(updatedProduct.getExpiryDate());
         product.setImagePath(updatedProduct.getImagePath());
+        product.setHsnSacCode(updatedProduct.getHsnSacCode());
+        // CBM and net weight — optional export/logistics fields
+        product.setCbm(updatedProduct.getCbm());
+        product.setNetWeight(updatedProduct.getNetWeight());
         product.setUpdatedAt(LocalDateTime.now());
         product.setUpdatedBy(userId);
 

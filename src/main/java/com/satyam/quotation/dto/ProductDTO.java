@@ -11,6 +11,7 @@ public class ProductDTO {
     private Long id;
     private String productName;
     private String productCode;
+    private String hsnSacCode;
     private String brand;
     private String category;
     private String description;

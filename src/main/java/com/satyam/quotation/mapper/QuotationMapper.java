@@ -40,5 +40,7 @@ public interface QuotationMapper {
     @Mapping(target = "emailErrorMessage", ignore = true)
     @Mapping(target = "lastReminderSentAt", ignore = true)
     @Mapping(target = "services", ignore = true)
+    @Mapping(target = "usdExchangeRateSnapshot", ignore = true)
+    @Mapping(target = "ratePerCbmSnapshot", ignore = true)
     Quotation toEntity(QuotationRequestDTO requestDTO);
 }

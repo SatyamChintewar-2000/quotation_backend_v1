@@ -20,5 +20,13 @@ public class QuotationItemRequestDTO {
     
     private BigDecimal discountPercentage = BigDecimal.ZERO;
     
+    /**
+     * Optional flat discount amount. When provided and > 0, it means the user
+     * typed a rupee amount instead of a percentage. The frontend converts it to
+     * discountPercentage before sending so all backend calculations stay
+     * percentage-based; this field is stored for PDF display only.
+     */
+    private BigDecimal discountAmount;
+
     private BigDecimal taxPercentage = BigDecimal.ZERO;
 }

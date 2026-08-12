@@ -32,5 +32,9 @@ public class QuotationDTO {
 
     // Feature 2: Toggle service charges on PDF
     private Boolean hideServiceChargesOnPdf;
+
+    // Export rate snapshots — frozen at quotation creation time
+    private java.math.BigDecimal usdExchangeRateSnapshot;
+    private java.math.BigDecimal ratePerCbmSnapshot;
 }
 

@@ -83,6 +83,14 @@ public class QuotationItem {
     @Builder.Default
     private BigDecimal discountPercentage = BigDecimal.ZERO;
 
+    /**
+     * Flat discount amount entered by the user (stored as-is for display in PDF).
+     * When present (> 0), the frontend converts it to discountPercentage for all
+     * backend calculations — this field is purely for display purposes.
+     */
+    @Column(name = "discount_amount", precision = 15, scale = 2)
+    private BigDecimal discountAmount;
+
     // Legacy field
     @Column(name = "item_discount_percentage", precision = 5, scale = 2)
     @Builder.Default

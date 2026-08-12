@@ -14,6 +14,8 @@ public class ProductRequestDTO {
     @NotBlank(message = "Product name is required")
     private String productName;
 
+    private String hsnSacCode;
+
     private String productCode;
 
     private String brand;

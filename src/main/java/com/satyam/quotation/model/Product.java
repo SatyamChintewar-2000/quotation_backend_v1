@@ -29,6 +29,9 @@ public class Product {
     @Column(name = "product_code")
     private String productCode;
 
+    @Column(name = "hsn_sac_code", length = 20)
+    private String hsnSacCode;
+
     private String brand;
 
     private String category;

@@ -1,4 +1,4 @@
-package com.satyam.quotation.model;
+ package com.satyam.quotation.model;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -137,4 +137,13 @@ public class Quotation {
     @Column(name = "hide_service_charges_on_pdf")
     @Builder.Default
     private Boolean hideServiceChargesOnPdf = false;
+
+    // ── Export rate snapshots — frozen at quotation creation time ─────────────
+    // These ensure old quotations always display with the rates that were in effect
+    // when the quotation was created, regardless of later company settings changes.
+    @Column(name = "usd_exchange_rate_snapshot", precision = 10, scale = 2)
+    private java.math.BigDecimal usdExchangeRateSnapshot;   // INR per $1 at time of quoting
+
+    @Column(name = "rate_per_cbm_snapshot", precision = 10, scale = 2)
+    private java.math.BigDecimal ratePerCbmSnapshot;         // USD per m3 at time of quoting
 }

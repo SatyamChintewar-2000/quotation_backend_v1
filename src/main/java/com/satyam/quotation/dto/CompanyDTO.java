@@ -44,4 +44,10 @@ public class CompanyDTO {
     private Boolean showUsdColumn;
     private java.math.BigDecimal ratePerCbm;
     private java.math.BigDecimal usdExchangeRate;
+
+    // Advanced Options (CBM) — V30
+    private Boolean cbmAdvancedMode;
+    private java.math.BigDecimal shippingCostUsd;
+    private java.math.BigDecimal clearancePerCbm;
+    private java.math.BigDecimal installationCost;
 }

@@ -17,6 +17,8 @@ public class QuotationItemDTO {
     private BigDecimal unitPrice;
     private Integer quantity;
     private BigDecimal discountPercentage;
+    /** Flat discount amount (stored for PDF display; calculations use discountPercentage). */
+    private BigDecimal discountAmount;
     private BigDecimal taxPercentage;
     private BigDecimal taxAmount;
     private BigDecimal itemTotal;
@@ -24,5 +26,7 @@ public class QuotationItemDTO {
     // Weight & CBM snapshots — captured at time of quoting
     private BigDecimal netWeightSnapshot;
     private BigDecimal cbmSnapshot;
+    // HSN/SAC code — from product at time of snapshot
+    private String hsnSacCode;
 }
 
