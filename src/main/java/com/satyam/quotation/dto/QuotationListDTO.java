@@ -39,6 +39,8 @@ public class QuotationListDTO {
     private LocalDateTime createdAt;
     private Long createdBy;
     private Boolean hideServiceChargesOnPdf;
+    private String customerAddress;
+    private String shippingAddress;
 
     // Items without images — only what the list table displays
     private List<QuotationListItemDTO> items;

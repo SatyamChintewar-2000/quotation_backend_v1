@@ -15,5 +15,10 @@ public class InvoiceRequestDTO {
     private BigDecimal discountPercentage;
     private String notes;
     private String termsAndConditions;
+    private String documentType;
+    private String gstType;
+    private String shippingAddress;
+    private LocalDate deliveryDate;
+    private LocalDate expiryDate;
     private List<InvoiceItemDTO> items;
 }

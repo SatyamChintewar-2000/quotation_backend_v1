@@ -10,6 +10,12 @@ import java.util.Optional;
 public interface QuotationService {
     
     Quotation createQuotation(Quotation quotation);
+
+    /**
+     * Save address snapshots directly — bypasses edit-status guard.
+     * Used immediately after createQuotation to persist customer/shipping address.
+     */
+    void saveAddressSnapshots(Long quotationId, String customerAddress, String shippingAddress);
     
     Optional<Quotation> getQuotationById(Long id);
     

@@ -155,6 +155,19 @@ public class QuotationServiceImpl implements QuotationService {
         return saved;
     }
 
+    @Override
+    @Transactional
+    public void saveAddressSnapshots(Long quotationId, String customerAddress, String shippingAddress) {
+        Quotation quotation = quotationRepository.findById(quotationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Quotation not found: " + quotationId));
+        // Direct field set + save — intentionally bypasses the canEdit() status guard.
+        // Address snapshots must be captured regardless of status (DRAFT, GENERATED, etc.)
+        if (customerAddress != null) quotation.setCustomerAddress(customerAddress);
+        if (shippingAddress != null) quotation.setShippingAddress(shippingAddress);
+        quotationRepository.save(quotation);
+        log.info("Saved address snapshots for quotation {}", quotationId);
+    }
+
     // ── Read operations ───────────────────────────────────────────────────────
 
     @Override

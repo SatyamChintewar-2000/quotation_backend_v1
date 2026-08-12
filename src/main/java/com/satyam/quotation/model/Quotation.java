@@ -146,4 +146,12 @@ public class Quotation {
 
     @Column(name = "rate_per_cbm_snapshot", precision = 10, scale = 2)
     private java.math.BigDecimal ratePerCbmSnapshot;         // USD per m3 at time of quoting
+
+    /** Snapshot of customer billing address at time of quotation */
+    @Column(name = "customer_address", columnDefinition = "TEXT")
+    private String customerAddress;
+
+    /** Snapshot of shipping address at time of quotation */
+    @Column(name = "shipping_address", columnDefinition = "TEXT")
+    private String shippingAddress;
 }

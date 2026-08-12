@@ -43,6 +43,8 @@ public class ProductRequestDTO {
     private String taxType = "GST";
     
     private BigDecimal taxPercentage = BigDecimal.ZERO;
+
+    private String hsnCode;
     
     private LocalDate expiryDate;
     

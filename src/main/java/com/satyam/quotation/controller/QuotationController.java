@@ -88,6 +88,22 @@ public class QuotationController {
         }
 
         Quotation saved = quotationService.createQuotation(quotation);
+
+        // Capture address snapshots — use direct save to avoid the edit-status guard
+        if (saved.getCustomer() != null) {
+            String custAddr = requestDTO.getCustomerAddress() != null
+                    ? requestDTO.getCustomerAddress()
+                    : saved.getCustomer().getAddress();
+            String shipAddr = requestDTO.getShippingAddress() != null
+                    ? requestDTO.getShippingAddress()
+                    : saved.getCustomer().getShippingAddress();
+            if (custAddr != null || shipAddr != null) {
+                quotationService.saveAddressSnapshots(saved.getId(), custAddr, shipAddr);
+                // Reload so the returned DTO has the addresses
+                saved = quotationService.getQuotationById(saved.getId()).orElse(saved);
+            }
+        }
+
         return quotationMapper.toDto(saved);
     }
 
@@ -193,6 +209,8 @@ public class QuotationController {
         dto.setCreatedAt(q.getCreatedAt());
         dto.setCreatedBy(q.getCreatedBy());
         dto.setHideServiceChargesOnPdf(q.getHideServiceChargesOnPdf());
+        dto.setCustomerAddress(q.getCustomerAddress());
+        dto.setShippingAddress(q.getShippingAddress());
 
         // Map items WITHOUT images
         if (q.getItems() != null) {

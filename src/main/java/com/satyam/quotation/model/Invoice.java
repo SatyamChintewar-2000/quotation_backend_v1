@@ -66,7 +66,31 @@ public class Invoice {
     
     @Column(columnDefinition = "TEXT")
     private String termsAndConditions;
-    
+
+    /** INVOICE or PROFORMA_INVOICE (default: INVOICE) */
+    @Column(name = "document_type", length = 30)
+    private String documentType = "INVOICE";
+
+    /** GST type: IGST (inter-state) or SGST_CGST (intra-state, default) */
+    @Column(name = "gst_type", length = 20)
+    private String gstType = "SGST_CGST";
+
+    /** Customer billing address snapshot (from customer at time of invoice creation) */
+    @Column(name = "customer_address", columnDefinition = "TEXT")
+    private String customerAddress;
+
+    /** Shipping address snapshot */
+    @Column(name = "shipping_address", columnDefinition = "TEXT")
+    private String shippingAddress;
+
+    /** Delivery date */
+    @Column(name = "delivery_date")
+    private LocalDate deliveryDate;
+
+    /** Expiry / validity date */
+    @Column(name = "expiry_date")
+    private LocalDate expiryDate;
+
     @Column(nullable = false)
     private Boolean emailSent = false;
     
