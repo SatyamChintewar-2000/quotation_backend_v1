@@ -33,7 +33,6 @@ public class CustomerServiceImpl implements CustomerService {
         this.cacheManager = cacheManager;
     }
 
-    // Evict only the specific company's customer cache — other companies unaffected
     private void evictCustomerCache(Long companyId, Long createdBy) {
         var cache = cacheManager.getCache("customers");
         if (cache != null) {
@@ -45,13 +44,9 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public Customer createCustomer(Customer customer, Long userId, Long companyId) {
-
-        if (customer.getPhone() != null && companyId != null) {
-            boolean phoneExists = customerRepository.existsByPhoneAndCompanyIdAndActiveTrue(
-                    customer.getPhone(), companyId);
-            if (phoneExists) {
-                throw new RuntimeException("Customer with this phone number already exists in your company");
-            }
+        // Normalize empty email to null — avoids DB constraint issues with empty strings
+        if (customer.getEmail() != null && customer.getEmail().isBlank()) {
+            customer.setEmail(null);
         }
 
         customer.setCreatedBy(userId);
@@ -100,12 +95,9 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public Customer updateCustomer(Customer customer, Long userId) {
-        if (customer.getPhone() != null && customer.getCompany() != null) {
-            boolean phoneExists = customerRepository.existsByPhoneAndCompanyIdAndActiveTrueAndIdNot(
-                    customer.getPhone(), customer.getCompany().getId(), customer.getId());
-            if (phoneExists) {
-                throw new RuntimeException("Customer with this phone number already exists in your company");
-            }
+        // Normalize empty email to null
+        if (customer.getEmail() != null && customer.getEmail().isBlank()) {
+            customer.setEmail(null);
         }
 
         customer.setUpdatedBy(userId);

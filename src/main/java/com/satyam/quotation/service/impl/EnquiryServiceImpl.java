@@ -169,22 +169,19 @@ public class EnquiryServiceImpl implements EnquiryService {
     }
 
     private void convertToCustomer(Enquiry enquiry, Long userId, Long companyId) {
-        log.info("Converting enquiry {} to customer. Status: {}, Already converted: {}", 
-                 enquiry.getId(), enquiry.getStatus(), enquiry.getConvertedCustomer() != null);
-        
-        // Don't create duplicate customer
+        log.info("Converting enquiry {} to customer. Already converted: {}",
+                 enquiry.getId(), enquiry.getConvertedCustomer() != null);
+
+        // Don't create duplicate customer from same enquiry
         if (enquiry.getConvertedCustomer() != null) {
-            log.info("Enquiry {} already has a converted customer (ID: {}), skipping conversion", 
+            log.info("Enquiry {} already converted to customer ID: {}, skipping",
                      enquiry.getId(), enquiry.getConvertedCustomer().getId());
             return;
         }
 
-        log.info("Creating customer from enquiry: name={}, email={}, phone={}", 
-                 enquiry.getName(), enquiry.getEmail(), enquiry.getContact());
-
         Customer customer = Customer.builder()
             .customerName(enquiry.getName())
-            .email(enquiry.getEmail())
+            .email(enquiry.getEmail() != null && !enquiry.getEmail().isBlank() ? enquiry.getEmail() : null)
             .phone(enquiry.getContact())
             .address(enquiry.getAddress())
             .active(true)
@@ -195,10 +192,10 @@ public class EnquiryServiceImpl implements EnquiryService {
             .build();
 
         Customer savedCustomer = customerRepository.save(customer);
-        log.info("Customer created successfully with ID: {}", savedCustomer.getId());
+        log.info("Customer created from enquiry, ID: {}", savedCustomer.getId());
 
         enquiry.setConvertedCustomer(savedCustomer);
         enquiryRepository.save(enquiry);
-        log.info("Enquiry {} updated with converted customer ID: {}", enquiry.getId(), savedCustomer.getId());
+        log.info("Enquiry {} linked to customer ID: {}", enquiry.getId(), savedCustomer.getId());
     }
 }

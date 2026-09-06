@@ -91,6 +91,10 @@ public class Invoice {
     @Column(name = "expiry_date")
     private LocalDate expiryDate;
 
+    /** Payment terms text (e.g. "100% advance", "50% advance + 50% before dispatch") */
+    @Column(name = "payment_terms", columnDefinition = "TEXT")
+    private String paymentTerms;
+
     @Column(nullable = false)
     private Boolean emailSent = false;
     

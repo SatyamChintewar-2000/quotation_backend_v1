@@ -60,6 +60,13 @@ public class ProductServiceImpl implements ProductService {
         product.setActive(true);
         product.setCreatedAt(LocalDateTime.now());
         product.setUpdatedAt(LocalDateTime.now());
+        // Sync hsnCode from hsnSacCode so both columns are always populated
+        if (product.getHsnCode() == null && product.getHsnSacCode() != null) {
+            product.setHsnCode(product.getHsnSacCode());
+        }
+        if (product.getHsnSacCode() == null && product.getHsnCode() != null) {
+            product.setHsnSacCode(product.getHsnCode());
+        }
 
         Product saved = productRepository.save(product);
         evictProductCache(companyId, userId);
@@ -116,9 +123,16 @@ public class ProductServiceImpl implements ProductService {
         product.setExpiryDate(updatedProduct.getExpiryDate());
         product.setImagePath(updatedProduct.getImagePath());
         product.setHsnSacCode(updatedProduct.getHsnSacCode());
+        product.setHsnCode(updatedProduct.getHsnSacCode());
         // CBM and net weight — optional export/logistics fields
         product.setCbm(updatedProduct.getCbm());
         product.setNetWeight(updatedProduct.getNetWeight());
+        // International Purchase (USD) fields
+        product.setPurchasePriceCurrency(updatedProduct.getPurchasePriceCurrency());
+        product.setPurchasePriceUsd(updatedProduct.getPurchasePriceUsd());
+        product.setShippingCostUsd(updatedProduct.getShippingCostUsd());
+        product.setDutyGstPercent(updatedProduct.getDutyGstPercent());
+        product.setClearanceCost(updatedProduct.getClearanceCost());
         product.setUpdatedAt(LocalDateTime.now());
         product.setUpdatedBy(userId);
 

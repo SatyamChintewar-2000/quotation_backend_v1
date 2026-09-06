@@ -30,3 +30,7 @@ UPDATE invoice SET document_type = 'INVOICE' WHERE document_type IS NULL;
 --    (calculations always use discount_percentage; this is display-only)
 ALTER TABLE quotation_items
     ADD COLUMN IF NOT EXISTS discount_amount DECIMAL(15, 2) DEFAULT NULL;
+
+-- 5. invoice: payment terms text
+ALTER TABLE invoice
+    ADD COLUMN IF NOT EXISTS payment_terms TEXT DEFAULT NULL;

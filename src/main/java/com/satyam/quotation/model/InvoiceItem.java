@@ -26,8 +26,12 @@ public class InvoiceItem {
     private Invoice invoice;
     
     @ManyToOne
-    @JoinColumn(name = "product_id", nullable = false)
+    @JoinColumn(name = "product_id", nullable = true)
     private Product product;
+    
+    /** Discriminator: 'PRODUCT' (default) or 'SERVICE' */
+    @Column(name = "item_type", length = 20, nullable = false)
+    private String itemType = "PRODUCT";
     
     @Column(nullable = false)
     private String productName;
@@ -37,6 +41,11 @@ public class InvoiceItem {
 
     @Column(name = "hsn_code", length = 20)
     private String hsnCode;
+
+    /** Exact flat discount amount entered by user — avoids rounding from % conversion */
+    @Column(name = "discount_amount", precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal discountAmount = BigDecimal.ZERO;
     
     @Column(nullable = false)
     private Integer quantity;

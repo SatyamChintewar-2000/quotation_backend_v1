@@ -74,6 +74,29 @@ public class Product {
     @Column(name = "cbm", precision = 10, scale = 4)
     private BigDecimal cbm;         // volume in cubic metres per unit
 
+    // ── International Purchase (USD) fields ───────────────────────────────────
+    // 'INR' or 'USD' — determines which purchase tab was used
+    @Column(name = "purchase_price_currency", length = 3)
+    @Builder.Default
+    private String purchasePriceCurrency = "INR";
+
+    // Purchase price per unit in USD (entered directly by user)
+    @Column(name = "purchase_price_usd", precision = 12, scale = 4)
+    private BigDecimal purchasePriceUsd;
+
+    // Shipping cost per unit in USD (item's share of total shipping)
+    @Column(name = "shipping_cost_usd", precision = 10, scale = 4)
+    private BigDecimal shippingCostUsd;
+
+    // GST + Customs duty rate (default 31%) applied on (item USD + shipping USD)
+    @Column(name = "duty_gst_percent", precision = 5, scale = 2)
+    @Builder.Default
+    private BigDecimal dutyGstPercent = new BigDecimal("31.00");
+
+    // Clearance cost per unit in INR (port / documentation / agent fees)
+    @Column(name = "clearance_cost", precision = 12, scale = 2)
+    private BigDecimal clearanceCost;
+
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "company_id")
     private Company company;

@@ -20,5 +20,6 @@ public class InvoiceRequestDTO {
     private String shippingAddress;
     private LocalDate deliveryDate;
     private LocalDate expiryDate;
+    private String paymentTerms;
     private List<InvoiceItemDTO> items;
 }

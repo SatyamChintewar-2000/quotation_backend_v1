@@ -18,8 +18,4 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     long countByCompanyIdAndActiveTrue(Long companyId);
 
     long countByCreatedByAndActiveTrue(Long createdBy);
-
-    boolean existsByPhoneAndCompanyIdAndActiveTrue(String phone, Long companyId);
-
-    boolean existsByPhoneAndCompanyIdAndActiveTrueAndIdNot(String phone, Long companyId, Long id);
 }

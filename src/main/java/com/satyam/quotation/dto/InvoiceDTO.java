@@ -13,6 +13,8 @@ public class InvoiceDTO {
     private Long quotationId;
     private Long customerId;
     private String customerName;
+    private String customerPhone;
+    private String customerEmail;
     private Long companyId;
     private String companyName;
     private LocalDate invoiceDate;
@@ -32,6 +34,7 @@ public class InvoiceDTO {
     private String shippingAddress;
     private LocalDate deliveryDate;
     private LocalDate expiryDate;
+    private String paymentTerms;
     private Boolean emailSent;
     private LocalDateTime emailSentAt;
     private Long createdBy;

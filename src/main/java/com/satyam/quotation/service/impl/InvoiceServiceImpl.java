@@ -102,6 +102,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 : (quotation.getCustomer() != null ? quotation.getCustomer().getShippingAddress() : null));
         invoice.setDeliveryDate(requestDTO.getDeliveryDate());
         invoice.setExpiryDate(requestDTO.getExpiryDate());
+        invoice.setPaymentTerms(requestDTO.getPaymentTerms());
         invoice.setStatus("DRAFT");
         invoice.setPaymentStatus("PENDING");
         invoice.setCreatedBy(userId);
@@ -123,18 +124,52 @@ public class InvoiceServiceImpl implements InvoiceService {
                 invoiceItem.setProduct(qItem.getProduct());
                 invoiceItem.setProductName(qItem.getProductName() != null ? qItem.getProductName() : qItem.getProductNameSnapshot());
                 invoiceItem.setProductDescription(qItem.getProductDescription() != null ? qItem.getProductDescription() : qItem.getProductDescriptionSnapshot());
-                // Carry hsnCode from the product snapshot if available
+                // Carry hsnCode from the product — fall back to hsnSacCode for older products
                 if (qItem.getProduct() != null) {
-                    invoiceItem.setHsnCode(qItem.getProduct().getHsnCode());
+                    String hsn = qItem.getProduct().getHsnCode() != null
+                        ? qItem.getProduct().getHsnCode()
+                        : qItem.getProduct().getHsnSacCode();
+                    invoiceItem.setHsnCode(hsn);
                 }
                 invoiceItem.setQuantity(qItem.getQuantity());
                 invoiceItem.setUnitPrice(qItem.getUnitPrice());
                 invoiceItem.setDiscountPercentage(qItem.getDiscountPercentage());
+                // Carry exact flat discount from quotation item so PDF shows the right amount
+                BigDecimal qDiscAmt = qItem.getDiscountAmount() != null && qItem.getDiscountAmount().compareTo(BigDecimal.ZERO) > 0
+                    ? qItem.getDiscountAmount()
+                    : qItem.getUnitPrice().multiply(BigDecimal.valueOf(qItem.getQuantity()))
+                        .multiply(qItem.getDiscountPercentage()).divide(BigDecimal.valueOf(100));
+                invoiceItem.setDiscountAmount(qDiscAmt);
                 invoiceItem.setTaxPercentage(qItem.getTaxPercentage());
                 invoiceItem.setTaxAmount(qItem.getTaxAmount());
-                invoiceItem.setItemTotal(qItem.getItemTotal());
+                // itemTotal on invoice = raw base (unitPrice × qty), not after-discount
+                BigDecimal rawBase = qItem.getUnitPrice().multiply(BigDecimal.valueOf(qItem.getQuantity()));
+                invoiceItem.setItemTotal(rawBase);
                 invoiceItem.setTotal(qItem.getTotal());
                 invoiceItemRepository.save(invoiceItem);
+            }
+        }
+
+        // Copy quotation services as SERVICE-type invoice items
+        if (quotation.getServices() != null && !quotation.getServices().isEmpty()) {
+            for (com.satyam.quotation.model.QuotationService svc : quotation.getServices()) {
+                if (svc.getServicePrice() == null || svc.getServicePrice().compareTo(BigDecimal.ZERO) <= 0) continue;
+                InvoiceItem svcItem = new InvoiceItem();
+                svcItem.setInvoice(savedInvoice);
+                svcItem.setProduct(null);
+                svcItem.setItemType("SERVICE");
+                svcItem.setProductName(svc.getServiceName());
+                svcItem.setQuantity(1);
+                svcItem.setUnitPrice(svc.getServicePrice());
+                svcItem.setDiscountPercentage(BigDecimal.ZERO);
+                svcItem.setDiscountAmount(BigDecimal.ZERO);
+                BigDecimal taxPct = svc.getServiceTax() != null ? svc.getServiceTax() : BigDecimal.ZERO;
+                svcItem.setTaxPercentage(taxPct);
+                BigDecimal taxAmt = svc.getServicePrice().multiply(taxPct).divide(BigDecimal.valueOf(100));
+                svcItem.setTaxAmount(taxAmt);
+                svcItem.setItemTotal(svc.getServicePrice());
+                svcItem.setTotal(svc.getServicePrice().add(taxAmt));
+                invoiceItemRepository.save(svcItem);
             }
         }
 
@@ -182,6 +217,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 : customer.getShippingAddress());
         invoice.setDeliveryDate(requestDTO.getDeliveryDate());
         invoice.setExpiryDate(requestDTO.getExpiryDate());
+        invoice.setPaymentTerms(requestDTO.getPaymentTerms());
         invoice.setStatus("DRAFT");
         invoice.setPaymentStatus("PENDING");
         invoice.setCreatedBy(userId);
@@ -208,25 +244,36 @@ public class InvoiceServiceImpl implements InvoiceService {
                     invoiceItem.setProduct(product);
                     invoiceItem.setProductName(product.getProductName());
                     invoiceItem.setProductDescription(product.getDescription());
-                    invoiceItem.setHsnCode(product.getHsnCode());
+                    // Use hsnCode first, fall back to hsnSacCode for older products
+                    invoiceItem.setHsnCode(product.getHsnCode() != null ? product.getHsnCode() : product.getHsnSacCode());
+                } else {
+                    // Service / installation charge — no product record required
+                    invoiceItem.setProduct(null);
+                    invoiceItem.setProductName(itemDTO.getProductName() != null ? itemDTO.getProductName() : "Service");
+                    invoiceItem.setProductDescription(itemDTO.getProductDescription());
                 }
+                invoiceItem.setItemType(itemDTO.getItemType() != null ? itemDTO.getItemType() : "PRODUCT");
                 
                 invoiceItem.setQuantity(itemDTO.getQuantity());
                 invoiceItem.setUnitPrice(itemDTO.getUnitPrice());
                 invoiceItem.setDiscountPercentage(itemDTO.getDiscountPercentage() != null ? itemDTO.getDiscountPercentage() : BigDecimal.ZERO);
                 invoiceItem.setTaxPercentage(itemDTO.getTaxPercentage() != null ? itemDTO.getTaxPercentage() : BigDecimal.ZERO);
                 
-                // Calculate amounts
-                BigDecimal itemTotal = itemDTO.getUnitPrice().multiply(BigDecimal.valueOf(itemDTO.getQuantity()));
-                BigDecimal discountAmount = itemTotal.multiply(invoiceItem.getDiscountPercentage()).divide(BigDecimal.valueOf(100));
-                BigDecimal afterDiscount = itemTotal.subtract(discountAmount);
+                // Calculate amounts — store exact flat discount, not just the %
+                BigDecimal base = itemDTO.getUnitPrice().multiply(BigDecimal.valueOf(itemDTO.getQuantity()));
+                // If the DTO carries an explicit discount amount, use it; otherwise derive from %
+                BigDecimal discountAmount = itemDTO.getDiscountAmount() != null && itemDTO.getDiscountAmount().compareTo(BigDecimal.ZERO) > 0
+                    ? itemDTO.getDiscountAmount()
+                    : base.multiply(invoiceItem.getDiscountPercentage()).divide(BigDecimal.valueOf(100));
+                BigDecimal afterDiscount = base.subtract(discountAmount);
                 BigDecimal taxAmount = afterDiscount.multiply(invoiceItem.getTaxPercentage()).divide(BigDecimal.valueOf(100));
                 BigDecimal total = afterDiscount.add(taxAmount);
-                
-                invoiceItem.setItemTotal(itemTotal);
+
+                invoiceItem.setItemTotal(base);         // raw base before discount
+                invoiceItem.setDiscountAmount(discountAmount);  // exact flat discount
                 invoiceItem.setTaxAmount(taxAmount);
                 invoiceItem.setTotal(total);
-                
+
                 invoiceItemRepository.save(invoiceItem);
             }
         }
@@ -361,22 +408,48 @@ public class InvoiceServiceImpl implements InvoiceService {
         if (requestDTO.getExpiryDate() != null) {
             invoice.setExpiryDate(requestDTO.getExpiryDate());
         }
-
-        // Update items if provided
+        if (requestDTO.getPaymentTerms() != null) {
+            invoice.setPaymentTerms(requestDTO.getPaymentTerms());
+        }
         if (requestDTO.getItems() != null) {
             invoiceItemRepository.deleteAll(invoiceItemRepository.findByInvoiceId(id));
             for (InvoiceItemDTO itemDTO : requestDTO.getItems()) {
                 InvoiceItem item = new InvoiceItem();
                 item.setInvoice(invoice);
-                item.setProduct(productRepository.findById(itemDTO.getProductId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Product not found")));
-                item.setProductName(itemDTO.getProductName());
-                item.setProductDescription(itemDTO.getProductDescription());
+
+                if (itemDTO.getProductId() != null) {
+                    Product product = productRepository.findById(itemDTO.getProductId())
+                            .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + itemDTO.getProductId()));
+                    item.setProduct(product);
+                    item.setProductName(product.getProductName());
+                    item.setProductDescription(product.getDescription());
+                    item.setHsnCode(product.getHsnCode() != null ? product.getHsnCode() : product.getHsnSacCode());
+                } else {
+                    // SERVICE item — no product record
+                    item.setProduct(null);
+                    item.setProductName(itemDTO.getProductName() != null ? itemDTO.getProductName() : "Service");
+                    item.setProductDescription(itemDTO.getProductDescription());
+                }
+
+                item.setItemType(itemDTO.getItemType() != null ? itemDTO.getItemType() : "PRODUCT");
                 item.setQuantity(itemDTO.getQuantity());
                 item.setUnitPrice(itemDTO.getUnitPrice());
-                item.setDiscountPercentage(itemDTO.getDiscountPercentage());
-                item.setTaxPercentage(itemDTO.getTaxPercentage());
-                item.calculateItemTotal();
+                item.setDiscountPercentage(itemDTO.getDiscountPercentage() != null ? itemDTO.getDiscountPercentage() : BigDecimal.ZERO);
+                item.setTaxPercentage(itemDTO.getTaxPercentage() != null ? itemDTO.getTaxPercentage() : BigDecimal.ZERO);
+
+                BigDecimal base = itemDTO.getUnitPrice().multiply(BigDecimal.valueOf(itemDTO.getQuantity()));
+                BigDecimal discountAmount = itemDTO.getDiscountAmount() != null && itemDTO.getDiscountAmount().compareTo(BigDecimal.ZERO) > 0
+                        ? itemDTO.getDiscountAmount()
+                        : base.multiply(item.getDiscountPercentage()).divide(BigDecimal.valueOf(100));
+                BigDecimal afterDiscount = base.subtract(discountAmount);
+                BigDecimal taxAmount = afterDiscount.multiply(item.getTaxPercentage()).divide(BigDecimal.valueOf(100));
+                BigDecimal total = afterDiscount.add(taxAmount);
+
+                item.setItemTotal(base);
+                item.setDiscountAmount(discountAmount);
+                item.setTaxAmount(taxAmount);
+                item.setTotal(total);
+
                 invoiceItemRepository.save(item);
             }
         }
@@ -569,20 +642,32 @@ public class InvoiceServiceImpl implements InvoiceService {
         BigDecimal totalTax = BigDecimal.ZERO;
         
         for (InvoiceItem item : items) {
-            item.calculateItemTotal();
-            subtotal = subtotal.add(item.getItemTotal().subtract(item.getTaxAmount() != null ? item.getTaxAmount() : BigDecimal.ZERO));
-            totalTax = totalTax.add(item.getTaxAmount() != null ? item.getTaxAmount() : BigDecimal.ZERO);
+            if ("SERVICE".equals(item.getItemType())) {
+                // Service rows: price * qty + tax, no separate subtotal tracking
+                item.calculateItemTotal();
+                totalTax = totalTax.add(item.getTaxAmount() != null ? item.getTaxAmount() : BigDecimal.ZERO);
+            } else {
+                item.calculateItemTotal();
+                subtotal = subtotal.add(item.getItemTotal().subtract(item.getTaxAmount() != null ? item.getTaxAmount() : BigDecimal.ZERO));
+                totalTax = totalTax.add(item.getTaxAmount() != null ? item.getTaxAmount() : BigDecimal.ZERO);
+            }
         }
         
         invoice.setSubtotal(subtotal);
         invoice.setTotalTax(totalTax);
         
-        // Apply discount
+        // Apply discount (on product subtotal only, not on service charges)
         BigDecimal discountAmount = subtotal.multiply(invoice.getDiscountPercentage()).divide(BigDecimal.valueOf(100));
         invoice.setTotalDiscount(discountAmount);
         
-        // Calculate total
-        BigDecimal total = subtotal.subtract(discountAmount).add(totalTax);
+        // Add service item totals separately (already includes their tax via calculateItemTotal)
+        BigDecimal serviceTotal = items.stream()
+            .filter(i -> "SERVICE".equals(i.getItemType()))
+            .map(i -> i.getTotal() != null ? i.getTotal() : BigDecimal.ZERO)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        // Calculate total = product subtotal - discount + all taxes + service totals
+        BigDecimal total = subtotal.subtract(discountAmount).add(totalTax).add(serviceTotal);
         invoice.setTotalAmount(total);
     }
 
@@ -640,6 +725,8 @@ public class InvoiceServiceImpl implements InvoiceService {
         dto.setQuotationId(invoice.getQuotation() != null ? invoice.getQuotation().getId() : null);
         dto.setCustomerId(invoice.getCustomer().getId());
         dto.setCustomerName(invoice.getCustomer().getCustomerName());
+        dto.setCustomerPhone(invoice.getCustomer().getPhone());
+        dto.setCustomerEmail(invoice.getCustomer().getEmail());
         dto.setCompanyId(invoice.getCompany().getId());
         dto.setCompanyName(invoice.getCompany().getCompanyName());
         dto.setInvoiceDate(invoice.getInvoiceDate());
@@ -659,7 +746,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         dto.setShippingAddress(invoice.getShippingAddress());
         dto.setDeliveryDate(invoice.getDeliveryDate());
         dto.setExpiryDate(invoice.getExpiryDate());
-        dto.setEmailSent(invoice.getEmailSent());
+        dto.setPaymentTerms(invoice.getPaymentTerms());
         dto.setEmailSentAt(invoice.getEmailSentAt());
         dto.setCreatedBy(invoice.getCreatedBy());
         dto.setCreatedAt(invoice.getCreatedAt());
@@ -688,13 +775,19 @@ public class InvoiceServiceImpl implements InvoiceService {
         InvoiceItemDTO dto = new InvoiceItemDTO();
         dto.setId(item.getId());
         dto.setInvoiceId(item.getInvoice().getId());
-        dto.setProductId(item.getProduct().getId());
+        dto.setProductId(item.getProduct() != null ? item.getProduct().getId() : null);
+        dto.setItemType(item.getItemType() != null ? item.getItemType() : "PRODUCT");
         dto.setProductName(item.getProductName());
         dto.setProductDescription(item.getProductDescription());
         dto.setHsnCode(item.getHsnCode());
+        // Include product image so the PDF generator can show it (proforma invoices)
+        if (item.getProduct() != null && item.getProduct().getImagePath() != null) {
+            dto.setImagePath(item.getProduct().getImagePath());
+        }
         dto.setQuantity(item.getQuantity());
         dto.setUnitPrice(item.getUnitPrice());
         dto.setDiscountPercentage(item.getDiscountPercentage());
+        dto.setDiscountAmount(item.getDiscountAmount() != null ? item.getDiscountAmount() : BigDecimal.ZERO);
         dto.setTaxPercentage(item.getTaxPercentage());
         dto.setTaxAmount(item.getTaxAmount());
         dto.setItemTotal(item.getItemTotal());

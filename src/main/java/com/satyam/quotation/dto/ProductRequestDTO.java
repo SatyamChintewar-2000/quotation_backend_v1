@@ -53,4 +53,11 @@ public class ProductRequestDTO {
     // Optional: weight and volume per unit (for export/logistics quotations)
     private java.math.BigDecimal netWeight;
     private java.math.BigDecimal cbm;
+
+    // International Purchase (USD) fields
+    private String purchasePriceCurrency;      // "INR" or "USD"
+    private java.math.BigDecimal purchasePriceUsd;   // per-unit price in USD
+    private java.math.BigDecimal shippingCostUsd;    // per-unit shipping in USD
+    private java.math.BigDecimal dutyGstPercent;     // GST+duty % (default 31)
+    private java.math.BigDecimal clearanceCost;      // clearance cost in INR per unit
 }
