@@ -71,6 +71,9 @@ public class Product {
     @Column(name = "net_weight", precision = 10, scale = 3)
     private BigDecimal netWeight;   // net weight in kg per unit
 
+    @Column(name = "stack_weight", precision = 10, scale = 3)
+    private BigDecimal stackWeight; // gross/stack weight in kg per unit (including packaging)
+
     @Column(name = "cbm", precision = 10, scale = 4)
     private BigDecimal cbm;         // volume in cubic metres per unit
 

@@ -64,6 +64,9 @@ public class QuotationItem {
     @Column(name = "net_weight_snapshot", precision = 10, scale = 3)
     private BigDecimal netWeightSnapshot;
 
+    @Column(name = "stack_weight_snapshot", precision = 10, scale = 3)
+    private BigDecimal stackWeightSnapshot; // gross/stack weight snapshot
+
     @Column(name = "cbm_snapshot", precision = 10, scale = 4)
     private BigDecimal cbmSnapshot;
 

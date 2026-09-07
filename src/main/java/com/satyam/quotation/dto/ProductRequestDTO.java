@@ -52,6 +52,7 @@ public class ProductRequestDTO {
 
     // Optional: weight and volume per unit (for export/logistics quotations)
     private java.math.BigDecimal netWeight;
+    private java.math.BigDecimal stackWeight; // gross/stack weight in kg per unit
     private java.math.BigDecimal cbm;
 
     // International Purchase (USD) fields

@@ -24,7 +24,9 @@ public interface QuotationItemMapper {
     @Mapping(source = "taxAmount", target = "taxAmount")
     @Mapping(source = "itemTotal", target = "itemTotal")
     @Mapping(source = "netWeightSnapshot", target = "netWeightSnapshot")
+    @Mapping(source = "stackWeightSnapshot", target = "stackWeightSnapshot")
     @Mapping(source = "cbmSnapshot", target = "cbmSnapshot")
+    @Mapping(source = "product.purchasePriceUsd", target = "purchasePriceUsd")
     @Mapping(source = "product.hsnSacCode", target = "hsnSacCode")
     QuotationItemDTO toDto(QuotationItem item);
 
@@ -42,6 +44,7 @@ public interface QuotationItemMapper {
     @Mapping(target = "itemDiscountPercentage", ignore = true)
     @Mapping(target = "total", ignore = true)
     @Mapping(target = "netWeightSnapshot", ignore = true)
+    @Mapping(target = "stackWeightSnapshot", ignore = true)
     @Mapping(target = "cbmSnapshot", ignore = true)
     QuotationItem toEntity(QuotationItemRequestDTO requestDTO);
 }

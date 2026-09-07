@@ -191,6 +191,7 @@ public class QuotationBusinessServiceImpl implements QuotationBusinessService {
 
         // Capture weight & CBM snapshot (null-safe — these are optional fields)
         item.setNetWeightSnapshot(product.getNetWeight());
+        item.setStackWeightSnapshot(product.getStackWeight());
         item.setCbmSnapshot(product.getCbm());
 
         // Set legacy fields for backward compatibility

@@ -25,7 +25,10 @@ public class QuotationItemDTO {
 
     // Weight & CBM snapshots — captured at time of quoting
     private BigDecimal netWeightSnapshot;
+    private BigDecimal stackWeightSnapshot; // gross/stack weight snapshot
     private BigDecimal cbmSnapshot;
+    // USD purchase price — from product record (for export PDF USD column)
+    private BigDecimal purchasePriceUsd;
     // HSN/SAC code — from product at time of snapshot
     private String hsnSacCode;
 }

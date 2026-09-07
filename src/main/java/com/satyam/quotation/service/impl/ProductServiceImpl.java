@@ -127,6 +127,7 @@ public class ProductServiceImpl implements ProductService {
         // CBM and net weight — optional export/logistics fields
         product.setCbm(updatedProduct.getCbm());
         product.setNetWeight(updatedProduct.getNetWeight());
+        product.setStackWeight(updatedProduct.getStackWeight());
         // International Purchase (USD) fields
         product.setPurchasePriceCurrency(updatedProduct.getPurchasePriceCurrency());
         product.setPurchasePriceUsd(updatedProduct.getPurchasePriceUsd());

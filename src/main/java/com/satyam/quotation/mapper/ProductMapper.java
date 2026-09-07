@@ -25,7 +25,7 @@ public interface ProductMapper {
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "deletedAt", ignore = true)
     @Mapping(target = "active", ignore = true)
-    // netWeight and cbm map automatically by name from ProductRequestDTO → Product
+    // netWeight, stackWeight and cbm map automatically by name from ProductRequestDTO → Product
     Product toEntity(ProductRequestDTO dto);
     
     @Mapping(target = "id", ignore = true)
@@ -37,6 +37,6 @@ public interface ProductMapper {
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "deletedAt", ignore = true)
     @Mapping(target = "active", ignore = true)
-    // netWeight and cbm map automatically by name from ProductRequestDTO → Product
+    // netWeight, stackWeight and cbm map automatically by name from ProductRequestDTO → Product
     void updateEntity(ProductRequestDTO dto, @MappingTarget Product product);
 }
