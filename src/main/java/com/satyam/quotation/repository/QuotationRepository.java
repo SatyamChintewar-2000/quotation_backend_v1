@@ -88,4 +88,21 @@ public interface QuotationRepository extends JpaRepository<Quotation, Long> {
            "WHERE q.active = true AND q.expiryDate IS NOT NULL AND q.expiryDate < CURRENT_DATE " +
            "AND (:companyId IS NULL OR q.company.id = :companyId)")
     List<Quotation> findExpiredQuotations(@Param("companyId") Long companyId);
+
+    // ── Scheduler query: only fetch what the expiry job needs ─────────────────
+    // Replaces the dangerous findAll().stream().filter(...) pattern in the scheduler.
+    // Pushes all filtering to the DB so only matching rows are loaded into memory.
+    @Query("SELECT DISTINCT q FROM Quotation q " +
+           "LEFT JOIN FETCH q.customer " +
+           "LEFT JOIN FETCH q.company " +
+           "WHERE q.status = 'SENT' " +
+           "AND q.active = true " +
+           "AND q.expiryDate IS NOT NULL " +
+           "AND q.expiryDate >= :today " +
+           "AND q.expiryDate <= :warningDate " +
+           "AND (q.lastReminderSentAt IS NULL OR q.lastReminderSentAt < :cutoff)")
+    List<Quotation> findSentQuotationsExpiringSoon(
+            @Param("today") java.time.LocalDate today,
+            @Param("warningDate") java.time.LocalDate warningDate,
+            @Param("cutoff") java.time.LocalDateTime cutoff);
 }

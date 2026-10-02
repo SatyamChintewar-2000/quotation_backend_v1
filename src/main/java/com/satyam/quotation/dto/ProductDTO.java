@@ -43,4 +43,5 @@ public class ProductDTO {
     private java.math.BigDecimal shippingCostUsd;    // per-unit shipping in USD
     private java.math.BigDecimal dutyGstPercent;     // GST+duty % (default 31)
     private java.math.BigDecimal clearanceCost;      // clearance cost in INR per unit
+    private java.math.BigDecimal domesticShippingInr; // domestic shipping per unit in INR
 }

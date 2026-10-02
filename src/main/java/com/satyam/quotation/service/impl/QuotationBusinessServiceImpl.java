@@ -71,8 +71,10 @@ public class QuotationBusinessServiceImpl implements QuotationBusinessService {
 
     @Override
     public boolean canEdit(Quotation quotation) {
-        // Only DRAFT quotations can be edited
-        return "DRAFT".equals(quotation.getStatus());
+        // DRAFT, GENERATED and SENT quotations can be edited
+        // APPROVED and REJECTED are terminal — use Duplicate & Edit instead
+        String s = quotation.getStatus();
+        return "DRAFT".equals(s) || "GENERATED".equals(s) || "SENT".equals(s);
     }
 
     @Override

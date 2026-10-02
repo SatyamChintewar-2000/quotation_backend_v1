@@ -55,15 +55,20 @@ public class QuotationServiceImpl implements QuotationService {
      * Other companies' cached data is untouched — they keep getting cache hits.
      */
     private void evictQuotationCache(Long companyId, Long createdBy) {
+        evictQuotationCache(null, companyId, createdBy);
+    }
+
+    private void evictQuotationCache(Long quotationId, Long companyId, Long createdBy) {
         var cache = cacheManager.getCache("quotations");
         if (cache != null) {
-            if (companyId != null) cache.evict("company:" + companyId);
-            if (createdBy  != null) cache.evict("user:"    + createdBy);
+            if (quotationId != null) cache.evict("id:" + quotationId); // evict single record cache
+            if (companyId   != null) cache.evict("company:" + companyId);
+            if (createdBy   != null) cache.evict("user:"    + createdBy);
             cache.evict("all"); // superadmin "all" view must always be refreshed
         }
         // Dashboard and reports stats are per-user/company — evict only affected ones
         var dash = cacheManager.getCache("dashboard");
-        if (dash != null) dash.invalidate(); // small cache, safe to clear fully
+        if (dash != null) dash.invalidate();
 
         var rep = cacheManager.getCache("reports");
         if (rep != null) rep.invalidate();
@@ -218,8 +223,6 @@ public class QuotationServiceImpl implements QuotationService {
         return quotationRepository.findAllActivePage(pageable);
     }
 
-    // ── More write operations ─────────────────────────────────────────────────
-
     @Override
     @Transactional
     public Quotation updateQuotation(Long id, Quotation updatedQuotation, Long userId) {
@@ -295,6 +298,7 @@ public class QuotationServiceImpl implements QuotationService {
         log.info("Updated quotation: {} to status: {}", saved.getQuotationNumber(), saved.getStatus());
 
         evictQuotationCache(
+                saved.getId(),
                 saved.getCompany() != null ? saved.getCompany().getId() : null,
                 saved.getCreatedBy());
 
@@ -315,11 +319,7 @@ public class QuotationServiceImpl implements QuotationService {
         quotation.setDeletedBy(userId);
         quotationRepository.save(quotation);
 
-        // Evict specific entry in id cache too
-        var cache = cacheManager.getCache("quotations");
-        if (cache != null) cache.evict("id:" + id);
-
-        evictQuotationCache(companyId, createdBy);
+        evictQuotationCache(id, companyId, createdBy);
     }
 
     @Override
@@ -359,6 +359,7 @@ public class QuotationServiceImpl implements QuotationService {
         log.info("Changed quotation {} status to {}", saved.getQuotationNumber(), newStatus);
 
         evictQuotationCache(
+                saved.getId(),
                 saved.getCompany() != null ? saved.getCompany().getId() : null,
                 saved.getCreatedBy());
 

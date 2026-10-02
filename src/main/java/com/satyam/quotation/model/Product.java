@@ -100,6 +100,11 @@ public class Product {
     @Column(name = "clearance_cost", precision = 12, scale = 2)
     private BigDecimal clearanceCost;
 
+    // Domestic shipping cost per unit in INR (for Indian/local products)
+    @Column(name = "domestic_shipping_inr", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal domesticShippingInr = BigDecimal.ZERO;
+
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "company_id")
     private Company company;

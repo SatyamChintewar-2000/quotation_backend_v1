@@ -12,6 +12,7 @@ public class CompanyRequestDTO {
     private String phone;
     private String email;
     private String gstNumber;
+    private String panNumber;
     private String state;
     private String city;
     private String termsAndConditions;
@@ -45,4 +46,5 @@ public class CompanyRequestDTO {
     private java.math.BigDecimal shippingCostUsd;
     private java.math.BigDecimal clearancePerCbm;
     private java.math.BigDecimal installationCost;
+    private java.math.BigDecimal dutyGstPercent;
 }

@@ -84,7 +84,7 @@ public class Quotation {
     @Column(name = "executive_name")
     private String executiveName;
 
-    @OneToMany(mappedBy = "quotation", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "quotation", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @Builder.Default
     private List<QuotationService> services = new ArrayList<>();
 

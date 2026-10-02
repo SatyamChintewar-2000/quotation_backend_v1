@@ -37,6 +37,9 @@ public class Company {
     @Column(name = "gst_number")
     private String gstNumber;
 
+    @Column(name = "pan_number", length = 10)
+    private String panNumber;
+
     @Column(name = "state")
     private String state;
 
@@ -156,5 +159,9 @@ public class Company {
     @Column(name = "installation_cost", precision = 12, scale = 2)
     @Builder.Default
     private java.math.BigDecimal installationCost = java.math.BigDecimal.ZERO;
+
+    @Column(name = "duty_gst_percent", precision = 5, scale = 2)
+    @Builder.Default
+    private java.math.BigDecimal dutyGstPercent = new java.math.BigDecimal("31.00");
 }
 
